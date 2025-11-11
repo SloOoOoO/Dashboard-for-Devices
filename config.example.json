@@ -1,0 +1,20 @@
+{
+  "description": "Example configuration file for Dashboard-for-Devices",
+  "note": "Copy this file to config.local.json and customize values as needed",
+  "server": {
+    "bind": "127.0.0.1:8080",
+    "password": "changeme"
+  },
+  "features": {
+    "storage_inventory": true,
+    "categories_enabled": false
+  },
+  "defaults": {
+    "ping_interval_seconds": 900,
+    "refresh_interval_seconds": 60
+  },
+  "notifications": {
+    "enabled": false,
+    "webhook_url": ""
+  }
+}

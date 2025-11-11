@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Ford Device Dashboard by TechM</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
+  <link rel="stylesheet" href="/static/css/storage.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -221,14 +222,9 @@
     </section>
   </main>
 
-  <!-- Credits button -->
-  <div class="credit-wrap">
-    <button id="credit-btn" class="btn credit">Credit</button>
-    <div id="credit-tip" class="credit-tip">
-      <div><strong>Created:</strong> Sühan Sari (SSARI9@ford.com)</div>
-      <div><strong>Contact:</strong> ithelp@ford.com</div>
-    </div>
-  </div>
+  {% include 'partials/storage_panel.html' %}
+
+  {% include 'partials/credits.html' %}
 
   <!-- Map placement modal -->
   <div id="place-modal" class="modal hidden">
@@ -262,6 +258,49 @@
 
   <div id="toast" class="toast hidden"></div>
 
+  <script src="/static/js/storage.js"></script>
   <script src="/static/js/app.js"></script>
+  <script>
+    // Initialize Storage Inventory after DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.StorageInventory) {
+        const inventory = new window.StorageInventory();
+        
+        // Wait for floors to be loaded from the main app
+        setTimeout(function() {
+          const floorSelect = document.getElementById('floor-select');
+          const floors = [];
+          
+          if (floorSelect) {
+            Array.from(floorSelect.options).forEach(function(option) {
+              floors.push({
+                id: option.value,
+                name: option.text
+              });
+            });
+          }
+          
+          inventory.init({
+            mapSelector: '#map-area',
+            floors: floors
+          });
+          
+          // Store globally for floor updates
+          window.storageInventoryInstance = inventory;
+        }, 1000);
+      }
+    });
+
+    // Listen for promoted devices and integrate with existing system
+    document.addEventListener('storage:device-promoted', function(e) {
+      console.log('Device promoted from storage:', e.detail);
+      
+      // If the main app needs to handle this, it can add the device here
+      // Example integration (commented out - needs actual implementation):
+      // const device = e.detail.device;
+      // const coords = { x: e.detail.x, y: e.detail.y };
+      // addMachineToMap(device, coords);
+    });
+  </script>
 </body>
 </html>

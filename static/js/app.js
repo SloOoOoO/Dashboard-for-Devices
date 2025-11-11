@@ -592,11 +592,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#refresh-interval")?.addEventListener("change", startAutoRefresh);
   $("#refresh")?.addEventListener("click", refreshPublic);
 
-  // Credits hover
-  const creditWrap = $(".credit-wrap");
-  creditWrap?.addEventListener("mouseenter", ()=> $("#credit-tip")?.classList.add("show"));
-  creditWrap?.addEventListener("mouseleave", ()=> $("#credit-tip")?.classList.remove("show"));
-
   // Boot
   (async function boot(){ await loadFloors(); await refreshPublic(); await checkAuth(); startAutoRefresh(); })();
 });

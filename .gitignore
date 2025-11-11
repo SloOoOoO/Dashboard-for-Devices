@@ -30,3 +30,6 @@ service-*.log
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Local configuration
+config.local.json

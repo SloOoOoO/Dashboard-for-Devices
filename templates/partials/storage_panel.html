@@ -1,0 +1,56 @@
+<!-- Storage Inventory Panel -->
+<aside id="storage-panel" class="storage-panel" aria-label="Storage Inventory">
+  <div class="storage-header">
+    <h3>Storage Inventory</h3>
+    <p class="storage-subtitle">Devices awaiting deployment</p>
+  </div>
+
+  <form id="storage-form" class="storage-form">
+    <div class="form-group">
+      <label for="storage-name">Device Name <span class="required">*</span></label>
+      <input 
+        type="text" 
+        id="storage-name" 
+        name="name" 
+        class="field" 
+        placeholder="Enter device name" 
+        required 
+        aria-required="true"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="storage-category">Category</label>
+      <select id="storage-category" name="category" class="field">
+        <option value="global">Global clients</option>
+        <option value="apple">Apple devices</option>
+        <option value="dzb">DZB</option>
+        <option value="brightsign">BrightSign</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="storage-floor">Floor</label>
+      <select id="storage-floor" name="floor" class="field">
+        <option value="main">Floor 1</option>
+      </select>
+    </div>
+
+    <button type="submit" class="btn primary storage-submit">Add to Storage</button>
+  </form>
+
+  <div id="storage-list" class="storage-list" aria-live="polite" aria-atomic="false">
+    <div class="storage-empty">No devices in storage</div>
+  </div>
+</aside>
+
+<!-- Placement Overlay (for promotion flow) -->
+<div id="placement-overlay" class="placement-overlay hidden">
+  <div class="overlay-content">
+    <div class="overlay-header">
+      <h3>Place Device on Map</h3>
+      <p class="overlay-instruction">Click anywhere on the map to place the device</p>
+      <button id="cancel-placement" class="btn">Cancel</button>
+    </div>
+  </div>
+</div>
