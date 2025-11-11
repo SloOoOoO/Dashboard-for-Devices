@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Ford Device Dashboard by TechM</title>
+  <link rel="stylesheet" href="/static/css/styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header class="nav">
+    <div class="brand"><div class="logo"></div><span>Ford Device Dashboard by TechM</span></div>
+    <div class="segmented">
+      <button class="seg active" data-tab="map">Map</button>
+      <button class="seg" data-tab="settings">Client Settings</button>
+    </div>
+    <div class="nav-tools">
+      <button id="theme-toggle" class="btn mini" title="Toggle theme">🌙</button>
+      <button id="open-kiosk" class="btn mini" title="Open kiosk view">Kiosk</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="tab-map" class="tab active">
+      <!-- Re-aligned toolbar: 3-column grid (left controls, middle search, right status) -->
+      <div class="toolbar glass">
+        <div class="left controls">
+          <select id="floor-select" class="field"></select>
+          <div class="btn-group">
+            <button id="zoom-out" class="btn mini" title="Zoom out">−</button>
+            <button id="zoom-in" class="btn mini" title="Zoom in">+</button>
+            <button id="zoom-fit" class="btn mini" title="Fit to screen">Fit</button>
+          </div>
+          <button id="rotate" class="btn mini" title="Rotate 90° (Shift-click = −90°)">⟳</button>
+          <button id="zoom-full" class="btn mini" title="Fullscreen">⛶</button>
+          <span id="zoom-label" class="muted nowrap">100% · 0°</span>
+        </div>
+
+        <input id="search" class="field grow" placeholder="Search name, IP, or serial"/>
+
+        <div class="right">
+          <div class="counts nowrap">
+            <span class="dot ok"></span><span id="cnt-ok">0</span>
+            <span class="dot down"></span><span id="cnt-down">0</span>
+          </div>
+          <div class="nowrap">
+            <span class="muted">Next ping in</span>
+            <span id="countdown" class="badge">--:--</span>
+          </div>
+          <select id="refresh-interval" class="field">
+            <option value="30">Auto 30s</option>
+            <option value="60" selected>Auto 60s</option>
+            <option value="120">Auto 2m</option>
+            <option value="300">Auto 5m</option>
+          </select>
+          <button id="ping-all" class="btn" disabled>Ping All</button>
+          <button id="refresh" class="btn">Refresh</button>
+          <span id="last-updated" class="muted nowrap"></span>
+        </div>
+      </div>
+
+      <div id="kiosk-stats" class="kiosk-stats hidden">
+        <div class="kcard ok"><div class="knum" id="k-ok">0</div><div>Online</div></div>
+        <div class="kcard down"><div class="knum" id="k-down">0</div><div>Offline</div></div>
+      </div>
+
+      <div id="category-bar" class="pillbar hidden">
+        <button class="pill active" data-cat="all">All</button>
+        <button class="pill" data-cat="global">Global clients</button>
+        <button class="pill" data-cat="apple">Apple devices</button>
+        <button class="pill" data-cat="dzb">DZB</button>
+        <button class="pill" data-cat="brightsign">BrightSign</button>
+      </div>
+
+      <div id="canvas-wrap" class="panel">
+        <div id="map-area">
+          <div id="map-rot">
+            <img id="map-img" alt="Map"/>
+            <div id="markers"></div>
+          </div>
+          <div id="no-map" class="empty hidden">
+            <div class="empty-box">
+              <div class="empty-title">No map uploaded</div>
+              <div class="empty-sub">Upload a PDF in Client Settings → Floors.</div>
+            </div>
+          </div>
+          <div id="tooltip" class="tooltip hidden"></div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span class="dot ok"></span>Up
+        <span class="dot down"></span>Down
+      </div>
+
+      <aside id="drawer" class="drawer hidden">
+        <div class="drawer-head"><div><strong id="d-title">Machine details</strong></div><button id="drawer-close" class="btn mini">Close</button></div>
+        <div class="drawer-body">
+          <div class="kv">
+            <div class="row"><span class="k">Status</span><span id="d-status" class="v"></span></div>
+            <div class="row"><span class="k">OS</span><span id="d-os" class="v"></span></div>
+            <div class="row"><span class="k">IP</span><span id="d-ip" class="v"></span></div>
+            <div class="row"><span class="k">Serial</span><span id="d-serial" class="v"></span></div>
+            <div class="row"><span class="k">RTT</span><span id="d-rtt" class="v"></span></div>
+            <div class="row"><span class="k">Uptime</span><span id="d-uptime" class="v"></span></div>
+            <div class="row"><span class="k">Last seen</span><span id="d-last" class="v"></span></div>
+            <div class="row"><span class="k">Notes</span><span id="d-notes" class="v"></span></div>
+          </div>
+          <div class="row"><button id="d-ping" class="btn mini">Ping now</button></div>
+          <h4>Latency (ms)</h4>
+          <div class="row">
+            <select id="hist-days" class="field">
+              <option value="1">1 day</option>
+              <option value="3">3 days</option>
+              <option value="7" selected>7 days</option>
+              <option value="14">14 days</option>
+              <option value="30">30 days</option>
+            </select>
+          </div>
+          <canvas id="hist-chart" height="120"></canvas>
+        </div>
+      </aside>
+    </section>
+
+    <section id="tab-settings" class="tab">
+      <div id="settings-unauth" class="panel glass">
+        <h2>Client Settings</h2>
+        <p class="muted">Sign in to enable editing. Until then, all controls are locked.</p>
+        <div class="row"><input id="pw" type="password" class="field" placeholder="Password"/><button id="login" class="btn primary">Sign in</button></div>
+        <div id="login-msg" class="error"></div>
+      </div>
+
+      <div id="settings-auth">
+        <div id="settings-lock" class="lock hidden"><div class="lock-msg">Locked. Sign in above to edit.</div></div>
+
+        <div class="panel glass">
+          <h3>Floors</h3>
+          <div class="row">
+            <select id="floor-settings-select" class="field"></select>
+            <input id="new-floor-name" class="field" placeholder="New floor name"/>
+            <button id="add-floor" class="btn">Add floor</button>
+            <input id="rename-floor-name" class="field" placeholder="Rename selected floor"/>
+            <button id="rename-floor" class="btn">Rename</button>
+            <button id="make-default" class="btn">Make default</button>
+            <button id="delete-floor" class="btn">Delete floor</button>
+          </div>
+          <div class="row">
+            <label class="row"><input type="checkbox" id="floor-categories-enabled"/> Enable categories on this floor</label>
+          </div>
+          <div class="row">
+            <input type="file" id="floor-file" accept=".pdf"/>
+            <button id="upload-floor" class="btn">Upload</button>
+            <span id="upload-msg" class="muted"></span>
+          </div>
+          <div class="muted" id="conv-status">Converters: PDF —</div>
+        </div>
+
+        <div class="panel glass">
+          <h3>Add / Edit machine</h3>
+          <div class="grid grid-2">
+            <label>Name<input id="m-name" class="field" placeholder="Workstation name"/></label>
+            <label>OS
+              <!-- OS dropdown -->
+              <select id="m-os" class="field">
+                <option value="">Select OS</option>
+                <option>Windows 11 (SAC)</option>
+                <option>Windows 11 (LTSC)</option>
+                <option>Windows 10 (SAC)</option>
+                <option>Windows 10 (LTSC)</option>
+                <option>Linux</option>
+                <option>MacOS</option>
+              </select>
+            </label>
+            <label>IP<input id="m-ip" class="field" placeholder="IP address"/></label>
+            <label>Serial<input id="m-serial" class="field" placeholder="Serial number"/></label>
+            <label>Category
+              <select id="m-category" class="field">
+                <option value="global">Global clients</option>
+                <option value="apple">Apple devices</option>
+                <option value="dzb">DZB</option>
+                <option value="brightsign">BrightSign</option>
+              </select>
+            </label>
+            <label class="full">Notes<textarea id="m-notes" class="field" rows="2" placeholder="Optional notes"></textarea></label>
+            <label>Check method
+              <select id="m-check" class="field"><option value="icmp" selected>ICMP ping</option><option value="tcp">TCP connect</option></select>
+            </label>
+            <label>TCP port (optional)<input id="m-tcp" class="field" type="number" min="1" max="65535" placeholder="e.g., 3389"/></label>
+            <div class="full row">
+              <span class="muted">Position:</span>
+              <span id="m-pos" class="muted">(use Map placement)</span>
+              <button id="open-placement" class="btn mini">Map placement</button>
+              <button id="clear-pos" class="btn mini">Clear position</button>
+            </div>
+            <input id="m-id" class="field hidden" disabled/>
+          </div>
+          <div class="row"><button id="save-machine" class="btn primary">Save machine</button><button id="clear-form" class="btn">Clear</button></div>
+        </div>
+
+        <div class="panel glass">
+          <h3>Existing machines</h3>
+          <div class="row">
+            <!-- Floor filter with All Floors -->
+            <select id="table-floor-filter" class="field"></select>
+            <div id="table-pills" class="pillbar">
+              <button class="pill active" data-tcat="all">All</button>
+              <button class="pill" data-tcat="global">Global</button>
+              <button class="pill" data-tcat="apple">Apple</button>
+              <button class="pill" data-tcat="dzb">DZB</button>
+              <button class="pill" data-tcat="brightsign">BrightSign</button>
+            </div>
+          </div>
+          <table id="list">
+            <thead><tr><th>Category</th><th>Name</th><th>OS</th><th>IP</th><th>Serial</th><th>Floor</th><th>Status</th><th>Last RTT</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="panel glass"><button id="logout" class="btn">Sign out</button></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Credits button -->
+  <div class="credit-wrap">
+    <button id="credit-btn" class="btn credit">Credit</button>
+    <div id="credit-tip" class="credit-tip">
+      <div><strong>Created:</strong> Sühan Sari (SSARI9@ford.com)</div>
+      <div><strong>Contact:</strong> ithelp@ford.com</div>
+    </div>
+  </div>
+
+  <!-- Map placement modal -->
+  <div id="place-modal" class="modal hidden">
+    <div class="modal-body">
+      <div class="modal-head">
+        <strong>Map placement</strong>
+        <div class="row">
+          <select id="place-floor" class="field"></select>
+          <select id="place-machine" class="field"></select>
+          <button id="place-save" class="btn primary">Save position</button>
+          <button id="place-close" class="btn">Close</button>
+        </div>
+      </div>
+      <div id="place-wrap" class="panel">
+        <div id="place-area">
+          <div id="place-rot">
+            <img id="place-img" alt="Map"/>
+            <div id="place-markers"></div>
+          </div>
+          <div id="place-no-map" class="empty hidden">
+            <div class="empty-box">
+              <div class="empty-title">No map on this floor</div>
+              <div class="empty-sub">Upload a map first to enable placement.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="muted">Click anywhere to set the selected machine’s location.</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
