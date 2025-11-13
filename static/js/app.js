@@ -35,11 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const showToast = msg => { if(!toast) return; toast.textContent=msg; toast.classList.remove("hidden"); setTimeout(()=>toast.classList.add("hidden"), 3000); };
 
-  // Theme
-  function setTheme(t){ document.documentElement.setAttribute("data-theme", t); localStorage.setItem("theme", t); $("#theme-toggle").textContent = t==="dark" ? "☀️" : "🌙"; }
-  $("#theme-toggle")?.addEventListener("click", ()=> setTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"));
-  setTheme(localStorage.getItem("theme")||"light");
-
   // Rotation persistence
   const rotKey = fid => `rot:${fid||""}`;
   const getRot = fid => { const v=+localStorage.getItem(rotKey(fid)); return [0,90,180,270].includes(v)?v:0; };
@@ -72,6 +67,20 @@ document.addEventListener("DOMContentLoaded", () => {
       el.disabled=!on;
     });
     $("#ping-all") && ($("#ping-all").disabled=!on);
+    
+    // Lock/unlock storage form for guests
+    const storageLockNote = $(".storage-lock-note");
+    storageLockNote?.classList.toggle("hidden", on);
+    $$("#storage-panel input, #storage-panel select, #storage-panel textarea, #storage-panel button").forEach(el=>{
+      // Don't disable the storage toggle button
+      if (el.id==="storage-toggle") return;
+      el.disabled=!on;
+    });
+    
+    // Update storage form validation after auth change
+    if (typeof validateStorageForm === 'function') {
+      setTimeout(validateStorageForm, 0);
+    }
   }
   setSettingsEnabled(false);
 
@@ -295,6 +304,7 @@ document.addEventListener("DOMContentLoaded", () => {
     floorSettingsSel.innerHTML=floors.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join("");
     floorSettingsSel.value=(floors.find(f=>f.default)||floors[0]).id;
     syncFloorCategoriesUI();
+    populateMachineFloorDropdown();
   }
 
   function populateTableFloorFilter(){
@@ -368,34 +378,58 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Export floors (backup)
-  $("#export-floors")?.addEventListener("click", async ()=>{
+  // Export combined backup (floors + devices)
+  $("#export-backup")?.addEventListener("click", async ()=>{
+    // Show confirmation dialog
+    if (!confirm("Do You Want to Download Backup")) {
+      return;
+    }
+    
     try {
-      const r = await fetch("/api/export/floors");
-      if (!r.ok) {
+      // Fetch both floors and machines data
+      const [floorsRes, machinesRes] = await Promise.all([
+        fetch("/api/export/floors"),
+        fetch("/api/export/machines")
+      ]);
+      
+      if (!floorsRes.ok || !machinesRes.ok) {
         showToast("Export failed");
         return;
       }
-      const blob = await r.blob();
+      
+      const floorsData = await floorsRes.json();
+      const machinesData = await machinesRes.json();
+      
+      // Combine the data
+      const combinedData = {
+        version: machinesData.version || floorsData.version,
+        exported_at: new Date().toISOString() + "Z",
+        floors: floorsData.floors || [],
+        machines: machinesData.machines || []
+      };
+      
+      // Create download
+      const blob = new Blob([JSON.stringify(combinedData, null, 2)], {type: "application/json"});
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `floors-backup-${new Date().toISOString().slice(0,10)}.json`;
+      a.download = `backup-${new Date().toISOString().slice(0,10)}.json`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      showToast("Floors exported successfully");
+      showToast("Backup exported successfully");
     } catch(e) {
       showToast("Export failed: " + e.message);
     }
   });
 
-  // Import floors (restore)
-  $("#import-floors")?.addEventListener("click", ()=>{
-    $("#import-floors-file").click();
+  // Import combined backup (floors + devices)
+  $("#import-backup")?.addEventListener("click", ()=>{
+    $("#import-backup-file").click();
   });
 
-  $("#import-floors-file")?.addEventListener("change", async (ev)=>{
+  $("#import-backup-file")?.addEventListener("change", async (ev)=>{
     const file = ev.target.files?.[0];
     if (!file) return;
     
@@ -403,102 +437,67 @@ document.addEventListener("DOMContentLoaded", () => {
       const text = await file.text();
       const data = JSON.parse(text);
       
-      if (!confirm(`Import ${data.floors?.length || 0} floors? This will replace existing floor configuration but preserve maps.`)) {
-        $("#import-floors-file").value = "";
-        return;
-      }
-      
-      const r = await fetch("/api/import/floors", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(data)
-      });
-      
-      const j = await r.json().catch(()=>({}));
-      $("#import-msg").textContent = r.ok ? (j.message || "Import successful") : (j.error || "Import failed");
-      
-      if (r.ok) {
-        await loadFloors();
-        populateFloorSelectors();
-        populateTableFloorFilter();
-        await refreshPublic();
-        showToast("Floors imported successfully");
-      }
-    } catch(e) {
-      $("#import-msg").textContent = "Import failed: " + e.message;
-    }
-    
-    $("#import-floors-file").value = "";
-  });
-
-  // Export devices (all machines)
-  $("#export-devices")?.addEventListener("click", async ()=>{
-    try {
-      const r = await fetch("/api/export/machines");
-      if (!r.ok) {
-        showToast("Export failed");
-        return;
-      }
-      const blob = await r.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `devices-export-${new Date().toISOString().slice(0,10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      showToast("Devices exported successfully");
-    } catch(e) {
-      showToast("Export failed: " + e.message);
-    }
-  });
-
-  // Import devices (all machines)
-  $("#import-devices")?.addEventListener("click", ()=>{
-    $("#import-devices-file").click();
-  });
-
-  $("#import-devices-file")?.addEventListener("change", async (ev)=>{
-    const file = ev.target.files?.[0];
-    if (!file) return;
-    
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      
+      const floorCount = data.floors?.length || 0;
       const machineCount = data.machines?.length || 0;
-      if (!confirm(`Import ${machineCount} devices? This will upsert (add or replace) devices from the backup.`)) {
-        $("#import-devices-file").value = "";
+      
+      if (!confirm(`Import ${floorCount} floors and ${machineCount} devices? This will restore the backup.`)) {
+        $("#import-backup-file").value = "";
         return;
       }
       
-      const r = await fetch("/api/import/machines", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(data)
-      });
+      // Import floors first, then devices
+      let floorsSuccess = false;
+      let devicesSuccess = false;
+      let statusMsg = "";
       
-      const j = await r.json().catch(()=>({}));
-      const msg = r.ok 
-        ? `Imported ${j.total || 0} devices (${j.upserted || 0} new, ${j.replaced || 0} replaced)` 
-        : (j.error || "Import failed");
-      $("#import-devices-msg").textContent = msg;
+      // Import floors
+      if (data.floors && data.floors.length > 0) {
+        const floorsRes = await fetch("/api/import/floors", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({floors: data.floors})
+        });
+        const floorsJson = await floorsRes.json().catch(()=>({}));
+        floorsSuccess = floorsRes.ok;
+        if (floorsSuccess) {
+          statusMsg += `Floors: ${floorsJson.message || "OK"}. `;
+        } else {
+          statusMsg += `Floors: ${floorsJson.error || "Failed"}. `;
+        }
+      }
       
-      if (r.ok) {
+      // Import devices
+      if (data.machines && data.machines.length > 0) {
+        const devicesRes = await fetch("/api/import/machines", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({machines: data.machines})
+        });
+        const devicesJson = await devicesRes.json().catch(()=>({}));
+        devicesSuccess = devicesRes.ok;
+        if (devicesSuccess) {
+          statusMsg += `Devices: ${devicesJson.total || 0} imported (${devicesJson.upserted || 0} new, ${devicesJson.replaced || 0} replaced)`;
+        } else {
+          statusMsg += `Devices: ${devicesJson.error || "Failed"}`;
+        }
+      }
+      
+      $("#backup-msg").textContent = statusMsg;
+      
+      if (floorsSuccess || devicesSuccess) {
         await loadFloors();
         populateFloorSelectors();
         populateTableFloorFilter();
         await loadMachinesTable();
         await loadStorageDevices();
         await refreshPublic();
-        showToast("Devices imported successfully");
+        showToast("Backup imported successfully");
       }
     } catch(e) {
-      $("#import-devices-msg").textContent = "Import failed: " + e.message;
+      $("#backup-msg").textContent = "Import failed: " + e.message;
     }
     
-    $("#import-devices-file").value = "";
+    $("#import-backup-file").value = "";
   });
 
   // Settings — Machines
@@ -508,10 +507,19 @@ document.addEventListener("DOMContentLoaded", () => {
     $("#m-ip").value=""; $("#m-serial").value="";
     $("#m-notes").value=""; $("#m-tcp").value=""; $("#m-check").value="icmp"; $("#m-pos").textContent="(use Map placement)";
     $("#m-category").value="global";
+    if ($("#m-floor")) $("#m-floor").value = currentFloor?.id || floors[0]?.id || "";
     $("#m-non-operational").checked = false;
     placement={mid:null,x:null,y:null,floor_id:null};
   }
   $("#clear-form")?.addEventListener("click", clearForm);
+  
+  // Populate floor dropdown in machine form
+  function populateMachineFloorDropdown(){
+    const floorDropdown = $("#m-floor");
+    if (!floorDropdown) return;
+    floorDropdown.innerHTML = floors.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join("");
+    if (currentFloor) floorDropdown.value = currentFloor.id;
+  }
 
   // Keyboard shortcuts for machine form
   const machineFormInputs = ["#m-name", "#m-ip", "#m-serial", "#m-tcp"];
@@ -528,21 +536,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("#save-machine")?.addEventListener("click", async ()=>{
     const name=$("#m-name").value.trim();
+    const os=$("#m-os").value;
     const ip=$("#m-ip").value.trim();
-    if (!name && !ip){ showToast("Enter at least a Name or an IP"); return; }
-    let defaultFloorId = placement.floor_id || floorSettingsSel?.value || floorSel?.value || (currentFloor?.id||"");
+    const serial=$("#m-serial").value.trim();
+    const check=$("#m-check").value;
+    const floor_id=$("#m-floor")?.value || "";
+    const isNonOperational = $("#m-non-operational")?.checked;
+    
+    // Validate mandatory fields
+    if (!name){ showToast("Name is required"); return; }
+    if (!os){ showToast("OS is required"); return; }
+    if (!ip){ showToast("IP is required"); return; }
+    if (!serial){ showToast("Serial is required"); return; }
+    if (!check){ showToast("Check method is required"); return; }
+    if (!floor_id){ showToast("Floor is required"); return; }
+    
+    // If not adding to inventory (operational device), position is required
+    if (!isNonOperational && (placement.x == null || placement.y == null)){
+      showToast("Map position is required for operational devices. Click 'Map placement' to set position.");
+      return;
+    }
+    
     const body={
       id: $("#m-id").value || undefined,
       name,
-      os: $("#m-os").value, // dropdown value
+      os,
       ip,
-      serial: $("#m-serial").value.trim(),
+      serial,
       notes: $("#m-notes").value.trim(),
-      check: $("#m-check").value,
+      check,
       tcp_port: +($("#m-tcp").value||0),
       category: $("#m-category").disabled ? "global" : ($("#m-category").value || "global"),
-      floor_id: defaultFloorId || undefined,
-      operational: !$("#m-non-operational")?.checked,
+      floor_id,
+      operational: !isNonOperational,
     };
     if (placement.x!=null && placement.y!=null){
       body.x=placement.x; body.y=placement.y;
@@ -628,6 +654,9 @@ document.addEventListener("DOMContentLoaded", () => {
           $("#m-os").value=m.os||""; // set dropdown
           $("#m-ip").value=m.ip||""; $("#m-serial").value=m.serial||"";
           $("#m-notes").value=m.notes||""; $("#m-category").value=m.category||"global";
+          if ($("#m-floor")) $("#m-floor").value = m.floor_id || currentFloor?.id || "";
+          $("#m-check").value = m.check || "icmp";
+          $("#m-tcp").value = m.tcp_port || "";
           $("#m-non-operational").checked = !m.operational;
           $("#m-pos").textContent = (typeof m.x==="number"&&typeof m.y==="number") ? `x:${m.x.toFixed(3)}, y:${m.y.toFixed(3)}` : "(use Map placement)";
           placement={mid:m.id,x:m.x,y:m.y,floor_id:m.floor_id};
@@ -755,7 +784,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Map tab init + auto refresh
   async function initMapTab(){ await loadFloors(); await refreshPublic(); await syncAuth(); await loadStorageDevices(); }
-  async function syncAuth(){ const j=await fetch("/api/whoami").then(r=>r.json()).catch(()=>({authenticated:false})); $("#ping-all") && ($("#ping-all").disabled = !j.authenticated); }
+  async function syncAuth(){ 
+    const j=await fetch("/api/whoami").then(r=>r.json()).catch(()=>({authenticated:false})); 
+    $("#ping-all") && ($("#ping-all").disabled = !j.authenticated); 
+    // Update storage form lock state
+    const storageLockNote = $(".storage-lock-note");
+    storageLockNote?.classList.toggle("hidden", !!j.authenticated);
+    $$("#storage-panel input, #storage-panel select, #storage-panel textarea, #storage-panel button").forEach(el=>{
+      if (el.id==="storage-toggle") return;
+      el.disabled=!j.authenticated;
+    });
+    if (typeof validateStorageForm === 'function') {
+      setTimeout(validateStorageForm, 0);
+    }
+  }
   function startAutoRefresh(){ if(timer) clearInterval(timer); const secs=+($("#refresh-interval")?.value||60); timer=setInterval(refreshPublic, secs*1000); }
   $("#refresh-interval")?.addEventListener("change", startAutoRefresh);
   $("#refresh")?.addEventListener("click", refreshPublic);
@@ -772,14 +814,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const storageToggle = $("#storage-toggle");
   const storageItems = $("#storage-items");
   const storFloor = $("#stor-floor");
-  const inventoryToggleFixed = $("#inventory-toggle-fixed");
 
-  // Centralized toggle function
+  // Toggle function for storage panel
   function toggleStoragePanel(){
     const isCollapsed = storagePanel?.classList.contains("collapsed");
     storagePanel?.classList.toggle("collapsed");
     
-    // Update both toggle buttons
+    // Update toggle button
     const newText = isCollapsed ? "◀" : "▶";
     const newTitle = isCollapsed ? "Collapse panel" : "Expand panel";
     const newExpanded = isCollapsed ? "true" : "false";
@@ -787,28 +828,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (storageToggle) {
       storageToggle.textContent = newText;
       storageToggle.setAttribute("title", newTitle);
-    }
-    if (inventoryToggleFixed) {
-      inventoryToggleFixed.textContent = newText;
-      inventoryToggleFixed.setAttribute("title", newTitle);
-      inventoryToggleFixed.setAttribute("aria-expanded", newExpanded);
+      storageToggle.setAttribute("aria-expanded", newExpanded);
     }
   }
 
-  // Toggle panel collapse (existing toggle in panel)
+  // Toggle panel collapse
   storageToggle?.addEventListener("click", toggleStoragePanel);
   
-  // Fixed toggle button (always visible)
-  inventoryToggleFixed?.addEventListener("click", toggleStoragePanel);
-  
-  // Keyboard support for both toggles
-  [storageToggle, inventoryToggleFixed].forEach(btn=>{
-    btn?.addEventListener("keydown", (ev)=>{
-      if (ev.key === "Enter" || ev.key === " "){
-        ev.preventDefault();
-        toggleStoragePanel();
-      }
-    });
+  // Keyboard support for toggle
+  storageToggle?.addEventListener("keydown", (ev)=>{
+    if (ev.key === "Enter" || ev.key === " "){
+      ev.preventDefault();
+      toggleStoragePanel();
+    }
   });
 
   // Populate floor dropdown for storage
@@ -868,11 +900,47 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Validate storage form and enable/disable submit button
+  function validateStorageForm(){
+    const name = $("#stor-name")?.value.trim();
+    const os = $("#stor-os")?.value;
+    const ip = $("#stor-ip")?.value.trim();
+    const serial = $("#stor-serial")?.value.trim();
+    const category = $("#stor-category")?.value;
+    const floor_id = $("#stor-floor")?.value;
+    const check = $("#stor-check")?.value;
+    const errorEl = $("#stor-error");
+    const saveBtn = $("#stor-save");
+    
+    if (errorEl) errorEl.textContent = "";
+    
+    // Check mandatory fields
+    const isValid = name && os && ip && serial && category && floor_id && check;
+    
+    if (saveBtn) {
+      saveBtn.disabled = !isValid;
+    }
+    
+    return isValid;
+  }
+
+  // Add input listeners for validation
+  ["stor-name", "stor-os", "stor-ip", "stor-serial", "stor-category", "stor-floor", "stor-check"].forEach(id=>{
+    $(`#${id}`)?.addEventListener("input", validateStorageForm);
+    $(`#${id}`)?.addEventListener("change", validateStorageForm);
+  });
+
   // Add device to storage
   $("#stor-save")?.addEventListener("click", async ()=>{
     const name = $("#stor-name")?.value.trim();
+    const os = $("#stor-os")?.value;
+    const ip = $("#stor-ip")?.value.trim();
+    const serial = $("#stor-serial")?.value.trim();
     const category = $("#stor-category")?.value || "global";
     const floor_id = $("#stor-floor")?.value;
+    const notes = $("#stor-notes")?.value.trim();
+    const check = $("#stor-check")?.value || "icmp";
+    const tcp = $("#stor-tcp")?.value.trim();
     const errorEl = $("#stor-error");
     
     if (errorEl) errorEl.textContent = "";
@@ -880,6 +948,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // Validation
     if (!name){
       if (errorEl) errorEl.textContent = "Name is required";
+      return;
+    }
+    if (!os){
+      if (errorEl) errorEl.textContent = "OS is required";
+      return;
+    }
+    if (!ip){
+      if (errorEl) errorEl.textContent = "IP is required";
+      return;
+    }
+    if (!serial){
+      if (errorEl) errorEl.textContent = "Serial is required";
       return;
     }
     if (!category){
@@ -890,16 +970,22 @@ document.addEventListener("DOMContentLoaded", () => {
       if (errorEl) errorEl.textContent = "Floor is required";
       return;
     }
+    if (!check){
+      if (errorEl) errorEl.textContent = "Check method is required";
+      return;
+    }
 
     const body = {
       name,
+      os,
+      ip,
+      serial,
       category,
       floor_id,
-      operational: false,
-      ip: "",
-      serial: "",
-      os: "",
-      notes: ""
+      notes,
+      check,
+      tcp_port: tcp ? parseInt(tcp, 10) : null,
+      operational: false
     };
 
     try {
@@ -917,7 +1003,14 @@ document.addEventListener("DOMContentLoaded", () => {
       
       // Clear form
       $("#stor-name").value = "";
+      $("#stor-os").value = "";
+      $("#stor-ip").value = "";
+      $("#stor-serial").value = "";
       $("#stor-category").value = "global";
+      $("#stor-notes").value = "";
+      $("#stor-check").value = "icmp";
+      $("#stor-tcp").value = "";
+      validateStorageForm();
       
       await loadStorageDevices();
       showToast("Device added to storage");
@@ -1044,6 +1137,7 @@ document.addEventListener("DOMContentLoaded", () => {
     await refreshPublic(); 
     await loadStorageDevices();
     await checkAuth(); 
+    validateStorageForm(); // Initialize form validation state
     startAutoRefresh(); 
   })();
 });
