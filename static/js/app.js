@@ -35,11 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const showToast = msg => { if(!toast) return; toast.textContent=msg; toast.classList.remove("hidden"); setTimeout(()=>toast.classList.add("hidden"), 3000); };
 
-  // Theme
-  function setTheme(t){ document.documentElement.setAttribute("data-theme", t); localStorage.setItem("theme", t); $("#theme-toggle").textContent = t==="dark" ? "☀️" : "🌙"; }
-  $("#theme-toggle")?.addEventListener("click", ()=> setTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"));
-  setTheme(localStorage.getItem("theme")||"light");
-
   // Rotation persistence
   const rotKey = fid => `rot:${fid||""}`;
   const getRot = fid => { const v=+localStorage.getItem(rotKey(fid)); return [0,90,180,270].includes(v)?v:0; };

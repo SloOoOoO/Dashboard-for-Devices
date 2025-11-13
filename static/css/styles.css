@@ -7,15 +7,6 @@
   --ok:#10b981; --down:#ef4444;
   --overlay:rgba(255,255,255,0.8);
 }
-html[data-theme="dark"]{
-  --bg:#0c1116; --bg2:#18202a;
-  --surface:#121821; --panel:rgba(20,26,33,0.9);
-  --border:#263241; --shadow:0 12px 30px rgba(0,0,0,0.6);
-  --text:#e5ecf2; --muted:#9aa7b4;
-  --primary:#4aa3ff; --primary-weak:#102034;
-  --ok:#22c55e; --down:#ff5b57;
-  --overlay:rgba(0,0,0,0.45);
-}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
@@ -84,11 +75,9 @@ main{padding:14px;max-width:1320px;margin:0 auto}
 
 /* Markers/tooltip */
 .marker{position:absolute;width:12px;height:12px;border-radius:6px;border:1px solid rgba(0,0,0,0.2);background:var(--down);transition:box-shadow .12s ease}
-html[data-theme="dark"] .marker{border-color:rgba(255,255,255,0.25)}
 .marker.ok{background:var(--ok)} .marker.down{background:var(--down)}
 .marker.hover.ok{box-shadow:0 0 0 8px rgba(16,185,129,0.25)} .marker.hover.down{box-shadow:0 0 0 8px rgba(239,68,68,0.25)}
 .dot{width:12px;height:12px;display:inline-block;border-radius:999px;border:1px solid rgba(0,0,0,0.2)}
-html[data-theme="dark"] .dot{border-color:rgba(255,255,255,0.2)}
 .dot.ok{background:var(--ok)} .dot.down{background:var(--down)}
 
 .tooltip{position:fixed;z-index:3500;min-width:220px;max-width:280px;border:1px solid var(--border);border-radius:12px;padding:10px;background:var(--surface);box-shadow:var(--shadow);color:var(--text)}
