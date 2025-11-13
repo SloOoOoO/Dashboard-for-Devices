@@ -20,6 +20,9 @@
     </div>
   </header>
 
+  <!-- Fixed inventory toggle (always visible) -->
+  <button id="inventory-toggle-fixed" class="btn mini inventory-toggle-fixed" title="Toggle Storage Inventory" tabindex="0" aria-expanded="true">◀</button>
+
   <main>
     <section id="tab-map" class="tab active">
       <!-- Re-aligned toolbar: 3-column grid (left controls, middle search, right status) -->
@@ -190,6 +193,18 @@
             <span id="import-msg" class="muted"></span>
           </div>
           <div class="muted" id="conv-status">Converters: PDF —</div>
+        </div>
+
+        <div class="panel glass">
+          <h3>Backup &amp; Restore</h3>
+          <h4>Devices</h4>
+          <p class="muted">Export or import all machines (operational and storage) across all floors.</p>
+          <div class="row">
+            <button id="export-devices" class="btn">Export Devices</button>
+            <input type="file" id="import-devices-file" accept=".json" style="display:none"/>
+            <button id="import-devices" class="btn">Import Devices</button>
+            <span id="import-devices-msg" class="muted"></span>
+          </div>
         </div>
 
         <div class="panel glass">

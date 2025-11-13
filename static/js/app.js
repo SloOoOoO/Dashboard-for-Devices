@@ -431,6 +431,76 @@ document.addEventListener("DOMContentLoaded", () => {
     $("#import-floors-file").value = "";
   });
 
+  // Export devices (all machines)
+  $("#export-devices")?.addEventListener("click", async ()=>{
+    try {
+      const r = await fetch("/api/export/machines");
+      if (!r.ok) {
+        showToast("Export failed");
+        return;
+      }
+      const blob = await r.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `devices-export-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showToast("Devices exported successfully");
+    } catch(e) {
+      showToast("Export failed: " + e.message);
+    }
+  });
+
+  // Import devices (all machines)
+  $("#import-devices")?.addEventListener("click", ()=>{
+    $("#import-devices-file").click();
+  });
+
+  $("#import-devices-file")?.addEventListener("change", async (ev)=>{
+    const file = ev.target.files?.[0];
+    if (!file) return;
+    
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      const machineCount = data.machines?.length || 0;
+      if (!confirm(`Import ${machineCount} devices? This will upsert (add or replace) devices from the backup.`)) {
+        $("#import-devices-file").value = "";
+        return;
+      }
+      
+      const r = await fetch("/api/import/machines", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
+      });
+      
+      const j = await r.json().catch(()=>({}));
+      const msg = r.ok 
+        ? `Imported ${j.total || 0} devices (${j.upserted || 0} new, ${j.replaced || 0} replaced)` 
+        : (j.error || "Import failed");
+      $("#import-devices-msg").textContent = msg;
+      
+      if (r.ok) {
+        await loadFloors();
+        populateFloorSelectors();
+        populateTableFloorFilter();
+        await loadMachinesTable();
+        await loadStorageDevices();
+        await refreshPublic();
+        showToast("Devices imported successfully");
+      }
+    } catch(e) {
+      $("#import-devices-msg").textContent = "Import failed: " + e.message;
+    }
+    
+    $("#import-devices-file").value = "";
+  });
+
   // Settings — Machines
   function clearForm(){
     $("#m-id").value=""; $("#m-name").value="";
@@ -702,20 +772,43 @@ document.addEventListener("DOMContentLoaded", () => {
   const storageToggle = $("#storage-toggle");
   const storageItems = $("#storage-items");
   const storFloor = $("#stor-floor");
+  const inventoryToggleFixed = $("#inventory-toggle-fixed");
 
-  // Toggle panel collapse
-  storageToggle?.addEventListener("click", ()=>{
+  // Centralized toggle function
+  function toggleStoragePanel(){
+    const isCollapsed = storagePanel?.classList.contains("collapsed");
     storagePanel?.classList.toggle("collapsed");
-    storageToggle.textContent = storagePanel?.classList.contains("collapsed") ? "▶" : "◀";
-    storageToggle.setAttribute("title", storagePanel?.classList.contains("collapsed") ? "Expand panel" : "Collapse panel");
-  });
-  
-  // Keyboard support for storage toggle
-  storageToggle?.addEventListener("keydown", (ev)=>{
-    if (ev.key === "Enter" || ev.key === " "){
-      ev.preventDefault();
-      storageToggle.click();
+    
+    // Update both toggle buttons
+    const newText = isCollapsed ? "◀" : "▶";
+    const newTitle = isCollapsed ? "Collapse panel" : "Expand panel";
+    const newExpanded = isCollapsed ? "true" : "false";
+    
+    if (storageToggle) {
+      storageToggle.textContent = newText;
+      storageToggle.setAttribute("title", newTitle);
     }
+    if (inventoryToggleFixed) {
+      inventoryToggleFixed.textContent = newText;
+      inventoryToggleFixed.setAttribute("title", newTitle);
+      inventoryToggleFixed.setAttribute("aria-expanded", newExpanded);
+    }
+  }
+
+  // Toggle panel collapse (existing toggle in panel)
+  storageToggle?.addEventListener("click", toggleStoragePanel);
+  
+  // Fixed toggle button (always visible)
+  inventoryToggleFixed?.addEventListener("click", toggleStoragePanel);
+  
+  // Keyboard support for both toggles
+  [storageToggle, inventoryToggleFixed].forEach(btn=>{
+    btn?.addEventListener("keydown", (ev)=>{
+      if (ev.key === "Enter" || ev.key === " "){
+        ev.preventDefault();
+        toggleStoragePanel();
+      }
+    });
   });
 
   // Populate floor dropdown for storage

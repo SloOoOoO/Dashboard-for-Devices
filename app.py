@@ -22,8 +22,8 @@ except Exception as _e:
     pdfium = None
     PDFIUM_IMPORT_ERROR = repr(_e)
 
-APP_NAME = os.getenv("APP_NAME", "Device Dashboard")
-APP_VERSION = "2025.11.13-storage-inventory.v1"
+APP_NAME = os.getenv("APP_NAME", "Ford Device Dashboard")
+APP_VERSION = "2025.11.13-storage-inventory.v2"
 
 CATEGORIES = ["global", "apple", "dzb", "brightsign"]
 
@@ -407,6 +407,88 @@ def import_floors():
         return jsonify({"ok": True, "message": f"Imported {len(imported_floors)} floors"})
     except Exception:
         return jsonify({"error": "Failed to import floors"}), 400
+
+@app.get("/api/export/machines")
+def export_machines():
+    require_auth()
+    with state_lock:
+        export_data = {
+            "version": APP_VERSION,
+            "exported_at": datetime.utcnow().isoformat() + "Z",
+            "floors": [{"id": f["id"], "name": f["name"]} for f in STATE.get("floors", [])],
+            "machines": list(STATE.get("machines", {}).values())
+        }
+    resp = make_response(jsonify(export_data))
+    resp.headers["Content-Disposition"] = f"attachment; filename=devices-export-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
+    resp.headers["Content-Type"] = "application/json"
+    return resp
+
+@app.post("/api/import/machines")
+def import_machines():
+    require_auth()
+    try:
+        # Handle both multipart file upload and raw JSON
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            if 'file' not in request.files:
+                return jsonify({"error": "No file provided"}), 400
+            file = request.files['file']
+            if not file.filename:
+                return jsonify({"error": "Empty filename"}), 400
+            try:
+                data = json.loads(file.read().decode('utf-8'))
+            except Exception:
+                return jsonify({"error": "Invalid JSON in file"}), 400
+        else:
+            data = request.get_json(silent=True) or {}
+        
+        if not data or "machines" not in data:
+            return jsonify({"error": "Invalid devices export format"}), 400
+        
+        imported_machines = data.get("machines", [])
+        if not isinstance(imported_machines, list):
+            return jsonify({"error": "Invalid machines data"}), 400
+        
+        with state_lock:
+            existing_floors = {f["id"]: f for f in STATE.get("floors", [])}
+            upserted = 0
+            replaced = 0
+            
+            for machine in imported_machines:
+                mid = machine.get("id")
+                if not mid:
+                    continue
+                
+                # Auto-create floor if it doesn't exist
+                floor_id = machine.get("floor_id")
+                if floor_id and floor_id not in existing_floors:
+                    new_floor = {
+                        "id": floor_id,
+                        "name": floor_id,
+                        "map_file": "",
+                        "map_type": "",
+                        "categories_enabled": False
+                    }
+                    STATE["floors"].append(new_floor)
+                    existing_floors[floor_id] = new_floor
+                
+                # Upsert machine (replace if exists)
+                if mid in STATE["machines"]:
+                    replaced += 1
+                else:
+                    upserted += 1
+                
+                STATE["machines"][mid] = machine
+            
+            save_state(STATE)
+        
+        return jsonify({
+            "ok": True,
+            "upserted": upserted,
+            "replaced": replaced,
+            "total": upserted + replaced
+        })
+    except Exception as e:
+        return jsonify({"error": f"Failed to import devices: {str(e)}"}), 400
 
 @app.post("/api/floors/upload")
 def floors_upload():

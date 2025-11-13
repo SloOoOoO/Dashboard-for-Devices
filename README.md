@@ -56,6 +56,12 @@ Kiosk
 
 The right-side Storage Inventory panel allows you to manage non-operational devices before deploying them to the map.
 
+### Fixed Inventory Toggle
+- A fixed toggle button appears in the top-left corner (always visible)
+- Click to expand/collapse the Storage Inventory panel
+- Keyboard accessible (Enter/Space keys)
+- Panel state is synced between the fixed toggle and the in-panel toggle
+
 ### Adding Devices to Storage
 1. Use the "Add to Storage" form in the storage panel
 2. Enter device name (required), select category and floor
@@ -69,11 +75,31 @@ The right-side Storage Inventory panel allows you to manage non-operational devi
 4. Click on the map to set the device location
 5. The device becomes operational and appears on the map
 
+### Managing Devices in Client Settings
+- Use "Add to inventory (non-operational)" checkbox when adding/editing machines
+- Toggle devices between operational and storage states using table row buttons
+- "To Storage" button: Demotes operational device to storage (clears position)
+- "To Operational" button: Opens map placement to promote storage device
+
 ### Keyboard Shortcuts
 - **Enter**: Submit forms (Add to Storage, Save machine)
 - **Escape**: Cancel placement mode or clear machine form
+- **Enter/Space**: Toggle Storage Inventory panel (when toggle button is focused)
 
 ### Validation
 - Name is required when adding to storage
 - Category and floor must be selected
 - Devices must have a map position to become operational
+
+## Backup & Restore
+
+### Floors Backup
+- **Export floors**: Backs up floor configuration (names, defaults, categories)
+- **Import floors**: Restores floor configuration (preserves existing maps)
+
+### Devices Backup
+- **Export Devices**: Downloads JSON containing all machines (operational and storage) across all floors
+- **Import Devices**: Restores/upserts devices from backup
+  - Upserts machines by ID (adds new, replaces existing)
+  - Auto-creates floors if they don't exist
+  - Preserves x/y coordinates and operational flags
