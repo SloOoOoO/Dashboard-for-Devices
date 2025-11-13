@@ -20,9 +20,6 @@
     </div>
   </header>
 
-  <!-- Fixed inventory toggle (always visible) -->
-  <button id="inventory-toggle-fixed" class="btn mini inventory-toggle-fixed" title="Toggle Storage Inventory" tabindex="0" aria-expanded="true">◀</button>
-
   <main>
     <section id="tab-map" class="tab active">
       <!-- Re-aligned toolbar: 3-column grid (left controls, middle search, right status) -->
@@ -99,14 +96,28 @@
       <!-- Storage Inventory Panel (right side) -->
       <aside id="storage-panel" class="storage-panel">
         <div class="storage-head">
+          <button id="storage-toggle" class="btn mini" title="Collapse panel" tabindex="0" aria-expanded="true">◀</button>
           <strong>Storage Inventory</strong>
-          <button id="storage-toggle" class="btn mini" title="Collapse panel" tabindex="0">◀</button>
         </div>
         <div class="storage-body">
           <div class="storage-add">
             <h4>Add to Storage</h4>
-            <label>Name<input id="stor-name" class="field" placeholder="Device name"/></label>
-            <label>Category
+            <div class="storage-lock-note hidden">🔒 Editing disabled for guests. Sign in to add devices.</div>
+            <label>Name *<input id="stor-name" class="field" placeholder="Device name"/></label>
+            <label>OS *
+              <select id="stor-os" class="field">
+                <option value="">Select OS</option>
+                <option>Windows 11 (SAC)</option>
+                <option>Windows 11 (LTSC)</option>
+                <option>Windows 10 (SAC)</option>
+                <option>Windows 10 (LTSC)</option>
+                <option>Linux</option>
+                <option>MacOS</option>
+              </select>
+            </label>
+            <label>IP *<input id="stor-ip" class="field" placeholder="IP address"/></label>
+            <label>Serial *<input id="stor-serial" class="field" placeholder="Serial number"/></label>
+            <label>Category *
               <select id="stor-category" class="field">
                 <option value="global">Global clients</option>
                 <option value="apple">Apple devices</option>
@@ -114,10 +125,18 @@
                 <option value="brightsign">BrightSign</option>
               </select>
             </label>
-            <label>Floor
+            <label>Floor *
               <select id="stor-floor" class="field"></select>
             </label>
-            <button id="stor-save" class="btn primary">Add to Storage</button>
+            <label>Notes<textarea id="stor-notes" class="field" rows="2" placeholder="Optional notes"></textarea></label>
+            <label>Check method *
+              <select id="stor-check" class="field">
+                <option value="icmp" selected>ICMP ping</option>
+                <option value="tcp">TCP connect</option>
+              </select>
+            </label>
+            <label>TCP port<input id="stor-tcp" class="field" type="number" min="1" max="65535" placeholder="Optional, e.g., 3389"/></label>
+            <button id="stor-save" class="btn primary" disabled>Add to Storage</button>
             <div id="stor-error" class="error"></div>
           </div>
           <div class="storage-list">
@@ -186,25 +205,21 @@
             <button id="upload-floor" class="btn">Upload</button>
             <span id="upload-msg" class="muted"></span>
           </div>
+          <h4>Backup &amp; Restore</h4>
           <div class="row">
-            <button id="export-floors" class="btn">Export floors (backup)</button>
+            <button id="export-floors" class="btn">Export floors</button>
             <input type="file" id="import-floors-file" accept=".json" style="display:none"/>
-            <button id="import-floors" class="btn">Import floors (restore)</button>
+            <button id="import-floors" class="btn">Import floors</button>
             <span id="import-msg" class="muted"></span>
           </div>
-          <div class="muted" id="conv-status">Converters: PDF —</div>
-        </div>
-
-        <div class="panel glass">
-          <h3>Backup &amp; Restore</h3>
-          <h4>Devices</h4>
-          <p class="muted">Export or import all machines (operational and storage) across all floors.</p>
+          <p class="muted">Export/import all devices (operational and storage) with locations for selected floor.</p>
           <div class="row">
-            <button id="export-devices" class="btn">Export Devices</button>
+            <button id="export-devices" class="btn">Export devices</button>
             <input type="file" id="import-devices-file" accept=".json" style="display:none"/>
-            <button id="import-devices" class="btn">Import Devices</button>
+            <button id="import-devices" class="btn">Import devices</button>
             <span id="import-devices-msg" class="muted"></span>
           </div>
+          <div class="muted" id="conv-status">Converters: PDF —</div>
         </div>
 
         <div class="panel glass">

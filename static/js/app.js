@@ -72,6 +72,15 @@ document.addEventListener("DOMContentLoaded", () => {
       el.disabled=!on;
     });
     $("#ping-all") && ($("#ping-all").disabled=!on);
+    
+    // Lock/unlock storage form for guests
+    const storageLockNote = $(".storage-lock-note");
+    storageLockNote?.classList.toggle("hidden", on);
+    $$("#storage-panel input, #storage-panel select, #storage-panel textarea, #storage-panel button").forEach(el=>{
+      // Don't disable the storage toggle button
+      if (el.id==="storage-toggle") return;
+      el.disabled=!on;
+    });
   }
   setSettingsEnabled(false);
 
@@ -433,6 +442,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Export devices (all machines)
   $("#export-devices")?.addEventListener("click", async ()=>{
+    // Show confirmation dialog
+    if (!confirm("Do You Want to Download Backup")) {
+      return;
+    }
+    
     try {
       const r = await fetch("/api/export/machines");
       if (!r.ok) {
@@ -772,14 +786,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const storageToggle = $("#storage-toggle");
   const storageItems = $("#storage-items");
   const storFloor = $("#stor-floor");
-  const inventoryToggleFixed = $("#inventory-toggle-fixed");
 
-  // Centralized toggle function
+  // Toggle function for storage panel
   function toggleStoragePanel(){
     const isCollapsed = storagePanel?.classList.contains("collapsed");
     storagePanel?.classList.toggle("collapsed");
     
-    // Update both toggle buttons
+    // Update toggle button
     const newText = isCollapsed ? "◀" : "▶";
     const newTitle = isCollapsed ? "Collapse panel" : "Expand panel";
     const newExpanded = isCollapsed ? "true" : "false";
@@ -787,28 +800,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (storageToggle) {
       storageToggle.textContent = newText;
       storageToggle.setAttribute("title", newTitle);
-    }
-    if (inventoryToggleFixed) {
-      inventoryToggleFixed.textContent = newText;
-      inventoryToggleFixed.setAttribute("title", newTitle);
-      inventoryToggleFixed.setAttribute("aria-expanded", newExpanded);
+      storageToggle.setAttribute("aria-expanded", newExpanded);
     }
   }
 
-  // Toggle panel collapse (existing toggle in panel)
+  // Toggle panel collapse
   storageToggle?.addEventListener("click", toggleStoragePanel);
   
-  // Fixed toggle button (always visible)
-  inventoryToggleFixed?.addEventListener("click", toggleStoragePanel);
-  
-  // Keyboard support for both toggles
-  [storageToggle, inventoryToggleFixed].forEach(btn=>{
-    btn?.addEventListener("keydown", (ev)=>{
-      if (ev.key === "Enter" || ev.key === " "){
-        ev.preventDefault();
-        toggleStoragePanel();
-      }
-    });
+  // Keyboard support for toggle
+  storageToggle?.addEventListener("keydown", (ev)=>{
+    if (ev.key === "Enter" || ev.key === " "){
+      ev.preventDefault();
+      toggleStoragePanel();
+    }
   });
 
   // Populate floor dropdown for storage
@@ -868,11 +872,47 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Validate storage form and enable/disable submit button
+  function validateStorageForm(){
+    const name = $("#stor-name")?.value.trim();
+    const os = $("#stor-os")?.value;
+    const ip = $("#stor-ip")?.value.trim();
+    const serial = $("#stor-serial")?.value.trim();
+    const category = $("#stor-category")?.value;
+    const floor_id = $("#stor-floor")?.value;
+    const check = $("#stor-check")?.value;
+    const errorEl = $("#stor-error");
+    const saveBtn = $("#stor-save");
+    
+    if (errorEl) errorEl.textContent = "";
+    
+    // Check mandatory fields
+    const isValid = name && os && ip && serial && category && floor_id && check;
+    
+    if (saveBtn) {
+      saveBtn.disabled = !isValid;
+    }
+    
+    return isValid;
+  }
+
+  // Add input listeners for validation
+  ["stor-name", "stor-os", "stor-ip", "stor-serial", "stor-category", "stor-floor", "stor-check"].forEach(id=>{
+    $(`#${id}`)?.addEventListener("input", validateStorageForm);
+    $(`#${id}`)?.addEventListener("change", validateStorageForm);
+  });
+
   // Add device to storage
   $("#stor-save")?.addEventListener("click", async ()=>{
     const name = $("#stor-name")?.value.trim();
+    const os = $("#stor-os")?.value;
+    const ip = $("#stor-ip")?.value.trim();
+    const serial = $("#stor-serial")?.value.trim();
     const category = $("#stor-category")?.value || "global";
     const floor_id = $("#stor-floor")?.value;
+    const notes = $("#stor-notes")?.value.trim();
+    const check = $("#stor-check")?.value || "icmp";
+    const tcp = $("#stor-tcp")?.value.trim();
     const errorEl = $("#stor-error");
     
     if (errorEl) errorEl.textContent = "";
@@ -880,6 +920,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // Validation
     if (!name){
       if (errorEl) errorEl.textContent = "Name is required";
+      return;
+    }
+    if (!os){
+      if (errorEl) errorEl.textContent = "OS is required";
+      return;
+    }
+    if (!ip){
+      if (errorEl) errorEl.textContent = "IP is required";
+      return;
+    }
+    if (!serial){
+      if (errorEl) errorEl.textContent = "Serial is required";
       return;
     }
     if (!category){
@@ -890,16 +942,22 @@ document.addEventListener("DOMContentLoaded", () => {
       if (errorEl) errorEl.textContent = "Floor is required";
       return;
     }
+    if (!check){
+      if (errorEl) errorEl.textContent = "Check method is required";
+      return;
+    }
 
     const body = {
       name,
+      os,
+      ip,
+      serial,
       category,
       floor_id,
-      operational: false,
-      ip: "",
-      serial: "",
-      os: "",
-      notes: ""
+      notes,
+      check,
+      tcp_port: tcp ? parseInt(tcp, 10) : null,
+      operational: false
     };
 
     try {
@@ -917,7 +975,14 @@ document.addEventListener("DOMContentLoaded", () => {
       
       // Clear form
       $("#stor-name").value = "";
+      $("#stor-os").value = "";
+      $("#stor-ip").value = "";
+      $("#stor-serial").value = "";
       $("#stor-category").value = "global";
+      $("#stor-notes").value = "";
+      $("#stor-check").value = "icmp";
+      $("#stor-tcp").value = "";
+      validateStorageForm();
       
       await loadStorageDevices();
       showToast("Device added to storage");
