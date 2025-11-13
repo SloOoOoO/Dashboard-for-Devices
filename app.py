@@ -22,8 +22,8 @@ except Exception as _e:
     pdfium = None
     PDFIUM_IMPORT_ERROR = repr(_e)
 
-APP_NAME = "Ford Device Dashboard by TechM"
-APP_VERSION = "2025.10.27-rotate-fit-pdf-only.v3"
+APP_NAME = os.getenv("APP_NAME", "Device Dashboard")
+APP_VERSION = "2025.11.13-storage-inventory.v1"
 
 CATEGORIES = ["global", "apple", "dzb", "brightsign"]
 
@@ -112,6 +112,7 @@ def load_state() -> Dict[str, Any]:
         m.setdefault("tcp_port", 0)
         m.setdefault("os", "")
         m.setdefault("category", "global")
+        m.setdefault("operational", True)
         if m["category"] not in CATEGORIES:
             m["category"] = "global"
     return st
@@ -417,8 +418,16 @@ def public_machines():
     floor_id = request.args.get("floor_id")
     with state_lock:
         ms = list(STATE["machines"].values())
+        # Only return operational devices for the map
+        ms = [m for m in ms if m.get("operational", True)]
         if floor_id:
             ms = [m for m in ms if m.get("floor_id")==floor_id]
+    resp = make_response(jsonify(ms)); resp.headers["Cache-Control"]="no-store"; return resp
+
+@app.get("/api/public/storage")
+def public_storage():
+    with state_lock:
+        ms = [m for m in STATE["machines"].values() if not m.get("operational", True)]
     resp = make_response(jsonify(ms)); resp.headers["Cache-Control"]="no-store"; return resp
 
 @app.route("/api/machines", methods=["GET","POST"])
@@ -442,7 +451,8 @@ def machines_list_create():
             "category": cat,
             "check": (m.get("check") or "icmp").lower(), "tcp_port": int(m.get("tcp_port") or 0),
             "created_at": now, "last_seen":"", "last_status":"down", "last_rtt_ms":0,
-            "total_pings":0, "up_pings":0, "consec_down":0, "last_error":""
+            "total_pings":0, "up_pings":0, "consec_down":0, "last_error":"",
+            "operational": m.get("operational", True)
         }
         if "x" in m and "y" in m and m["x"] is not None and m["y"] is not None:
             try:
@@ -481,6 +491,8 @@ def machine_by_id(mid):
                 cur["floor_id"] = body["floor_id"]
             if "category" in body and body["category"]:
                 cur["category"] = body["category"] if body["category"] in CATEGORIES else "global"
+            if "operational" in body:
+                cur["operational"] = bool(body["operational"])
             save_state(STATE)
         return jsonify(cur)
     with state_lock:

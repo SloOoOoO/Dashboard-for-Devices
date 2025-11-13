@@ -147,11 +147,30 @@ html[data-theme="dark"] .dot{border-color:rgba(255,255,255,0.2)}
 #settings-lock.hidden{display:none}
 .lock-msg{padding:8px 12px; border:1px solid var(--border); border-radius:999px; background:var(--surface); color:var(--text); box-shadow:var(--shadow)}
 
+/* Storage Panel */
+.storage-panel{position:fixed;right:16px;top:86px;bottom:16px;width:380px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:10px;z-index:3100;display:flex;flex-direction:column;transition:transform 0.2s ease}
+.storage-panel.collapsed{transform:translateX(calc(100% - 40px))}
+.storage-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.storage-body{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.storage-add{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--panel)}
+.storage-add label{display:block;margin-bottom:8px;font-size:13px}
+.storage-add label .field{width:100%;min-width:0;margin-top:4px}
+.storage-add h4{margin:0 0 8px 0;font-size:14px}
+.storage-list{flex:1;overflow-y:auto}
+.storage-list h4{margin:0 0 8px 0;font-size:14px}
+.storage-item{border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:8px;background:var(--panel)}
+.storage-item-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.storage-item-name{font-weight:600}
+.storage-item-details{font-size:12px;color:var(--muted);margin-bottom:6px}
+.error{color:var(--down);font-size:12px;margin-top:4px}
+
 /* Credits */
 .credit-wrap{position:fixed;left:16px;bottom:16px;z-index:4600}
 .credit{border-radius:999px}
 .credit-tip{position:absolute;left:0;bottom:42px;min-width:280px;border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:var(--shadow);padding:10px;color:var(--text);display:none}
 .credit-tip.show{display:block}
+.credit-tip a{color:var(--primary);text-decoration:none}
+.credit-tip a:hover{text-decoration:underline}
 
 /* Toast */
 .toast{position:fixed; right:16px; bottom:16px; min-width:200px; max-width:360px; background:#111; color:#fff; padding:10px 12px; border-radius:10px; box-shadow:var(--shadow); z-index:4500; opacity:0.95}
