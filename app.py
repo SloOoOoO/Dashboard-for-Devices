@@ -361,6 +361,53 @@ def floors_update_delete(fid):
             STATE["default_floor_id"]=floors[0]["id"]
         save_state(STATE); return "",204
 
+@app.get("/api/export/floors")
+def export_floors():
+    require_auth()
+    with state_lock:
+        export_data = {
+            "floors": STATE.get("floors", []),
+            "default_floor_id": STATE.get("default_floor_id", "main"),
+            "export_timestamp": datetime.utcnow().isoformat() + "Z",
+            "version": APP_VERSION
+        }
+    resp = make_response(jsonify(export_data))
+    resp.headers["Content-Disposition"] = f"attachment; filename=floors-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
+    resp.headers["Content-Type"] = "application/json"
+    return resp
+
+@app.post("/api/import/floors")
+def import_floors():
+    require_auth()
+    try:
+        data = request.get_json(silent=True) or {}
+        if not data or "floors" not in data:
+            return jsonify({"error": "Invalid backup file format"}), 400
+        
+        imported_floors = data.get("floors", [])
+        if not isinstance(imported_floors, list):
+            return jsonify({"error": "Invalid floors data"}), 400
+        
+        with state_lock:
+            # Keep existing maps but update floor metadata
+            existing_maps = {f["id"]: f.get("map_file", "") for f in STATE.get("floors", [])}
+            
+            # Update floors with imported data, preserving existing maps
+            for floor in imported_floors:
+                if floor["id"] in existing_maps and existing_maps[floor["id"]]:
+                    floor["map_file"] = existing_maps[floor["id"]]
+                    floor["map_type"] = "raster" if existing_maps[floor["id"]] else ""
+            
+            STATE["floors"] = imported_floors
+            if "default_floor_id" in data:
+                STATE["default_floor_id"] = data["default_floor_id"]
+            
+            save_state(STATE)
+        
+        return jsonify({"ok": True, "message": f"Imported {len(imported_floors)} floors"})
+    except Exception:
+        return jsonify({"error": "Failed to import floors"}), 400
+
 @app.post("/api/floors/upload")
 def floors_upload():
     require_auth()

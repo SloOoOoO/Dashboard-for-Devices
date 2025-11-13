@@ -97,7 +97,7 @@
       <aside id="storage-panel" class="storage-panel">
         <div class="storage-head">
           <strong>Storage Inventory</strong>
-          <button id="storage-toggle" class="btn mini" title="Collapse panel">◀</button>
+          <button id="storage-toggle" class="btn mini" title="Collapse panel" tabindex="0">◀</button>
         </div>
         <div class="storage-body">
           <div class="storage-add">
@@ -183,6 +183,12 @@
             <button id="upload-floor" class="btn">Upload</button>
             <span id="upload-msg" class="muted"></span>
           </div>
+          <div class="row">
+            <button id="export-floors" class="btn">Export floors (backup)</button>
+            <input type="file" id="import-floors-file" accept=".json" style="display:none"/>
+            <button id="import-floors" class="btn">Import floors (restore)</button>
+            <span id="import-msg" class="muted"></span>
+          </div>
           <div class="muted" id="conv-status">Converters: PDF —</div>
         </div>
 
@@ -218,6 +224,9 @@
             </label>
             <label>TCP port (optional)<input id="m-tcp" class="field" type="number" min="1" max="65535" placeholder="e.g., 3389"/></label>
             <div class="full row">
+              <label class="row"><input type="checkbox" id="m-non-operational"/> Add to inventory (non-operational)</label>
+            </div>
+            <div class="full row">
               <span class="muted">Position:</span>
               <span id="m-pos" class="muted">(use Map placement)</span>
               <button id="open-placement" class="btn mini">Map placement</button>
@@ -242,7 +251,7 @@
             </div>
           </div>
           <table id="list">
-            <thead><tr><th>Category</th><th>Name</th><th>OS</th><th>IP</th><th>Serial</th><th>Floor</th><th>Status</th><th>Last RTT</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Category</th><th>Name</th><th>OS</th><th>IP</th><th>Serial</th><th>Floor</th><th>State</th><th>Status</th><th>Last RTT</th><th>Actions</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
