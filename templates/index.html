@@ -279,6 +279,17 @@
           </table>
         </div>
 
+        <div class="panel glass">
+          <h3>Backup & Restore (Admin Only)</h3>
+          <div class="row">
+            <button id="export-data" class="btn">Export All Data</button>
+            <input type="file" id="import-file" accept=".json" style="display:none;"/>
+            <button id="import-data" class="btn">Import Data</button>
+            <span id="import-msg" class="muted"></span>
+          </div>
+          <div class="muted" style="margin-top:8px;">Export creates a backup of all floors and machines. Import replaces current data (use with caution).</div>
+        </div>
+
         <div class="panel glass"><button id="logout" class="btn">Sign out</button></div>
       </div>
     </section>

@@ -538,6 +538,57 @@ def history(mid):
     pts.sort(key=lambda x: x["t"])
     return jsonify(pts)
 
+@app.get("/api/export/")
+def export_data():
+    require_auth()
+    with state_lock:
+        export_data = {
+            "version": APP_VERSION,
+            "export_timestamp": datetime.utcnow().isoformat() + "Z",
+            "floors": STATE.get("floors", []),
+            "default_floor_id": STATE.get("default_floor_id", "main"),
+            "machines": list(STATE.get("machines", {}).values())
+        }
+    response = make_response(jsonify(export_data))
+    response.headers["Content-Disposition"] = f"attachment; filename=dashboard-export-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
+    response.headers["Content-Type"] = "application/json"
+    return response
+
+@app.post("/api/import/")
+def import_data():
+    require_auth()
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        # Validate the import data
+        if "floors" not in data or "machines" not in data:
+            return jsonify({"error": "Invalid export format"}), 400
+        
+        with state_lock:
+            # Import floors
+            if data.get("floors"):
+                STATE["floors"] = data["floors"]
+            
+            # Import default floor ID
+            if data.get("default_floor_id"):
+                STATE["default_floor_id"] = data["default_floor_id"]
+            
+            # Import machines
+            if data.get("machines"):
+                machines_dict = {}
+                for m in data["machines"]:
+                    if "id" in m:
+                        machines_dict[m["id"]] = m
+                STATE["machines"] = machines_dict
+            
+            save_state(STATE)
+        
+        return jsonify({"success": True, "message": "Data imported successfully"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 def generate_id(name: str, ip: str) -> str:
     base = re.sub(r"[^a-z0-9\-]+","", (name or "pc").lower().replace(" ","-"))
     ipn = (ip or "").replace(".","_")

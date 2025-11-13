@@ -930,6 +930,83 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Export/Import functionality
+  $("#export-data")?.addEventListener("click", async ()=>{
+    try {
+      const r = await fetch("/api/export/");
+      if (!r.ok){
+        showToast("Export failed");
+        return;
+      }
+      const blob = await r.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `dashboard-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      showToast("Data exported successfully");
+    } catch(e){
+      showToast("Export failed: " + e.message);
+    }
+  });
+
+  $("#import-data")?.addEventListener("click", ()=>{
+    $("#import-file")?.click();
+  });
+
+  $("#import-file")?.addEventListener("change", async (ev)=>{
+    const file = ev.target.files?.[0];
+    if (!file){
+      return;
+    }
+    
+    if (!confirm("WARNING: Importing will replace all current floors and machines. Are you sure you want to continue?")){
+      $("#import-file").value = "";
+      return;
+    }
+    
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      const r = await fetch("/api/import/", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
+      });
+      
+      const result = await r.json();
+      
+      if (!r.ok){
+        $("#import-msg").textContent = result.error || "Import failed";
+        showToast("Import failed");
+        return;
+      }
+      
+      $("#import-msg").textContent = "Import successful";
+      showToast("Data imported successfully");
+      
+      // Reload everything
+      await loadFloors();
+      populateFloorSelectors();
+      populateTableFloorFilter();
+      populateStorageFloors();
+      await loadMachinesTable();
+      await loadStorageDevices();
+      await refreshPublic();
+      
+      setTimeout(()=>{ $("#import-msg").textContent = ""; }, 5000);
+    } catch(e){
+      $("#import-msg").textContent = "Import failed: " + e.message;
+      showToast("Import failed");
+    } finally {
+      $("#import-file").value = "";
+    }
+  });
+
   // Boot
   (async function boot(){ 
     await loadFloors(); 
