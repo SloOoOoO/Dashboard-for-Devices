@@ -367,6 +367,70 @@ document.addEventListener("DOMContentLoaded", () => {
     await loadFloors(); populateTableFloorFilter(); refreshPublic();
   });
 
+  // Export floors (backup)
+  $("#export-floors")?.addEventListener("click", async ()=>{
+    try {
+      const r = await fetch("/api/export/floors");
+      if (!r.ok) {
+        showToast("Export failed");
+        return;
+      }
+      const blob = await r.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `floors-backup-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showToast("Floors exported successfully");
+    } catch(e) {
+      showToast("Export failed: " + e.message);
+    }
+  });
+
+  // Import floors (restore)
+  $("#import-floors")?.addEventListener("click", ()=>{
+    $("#import-floors-file").click();
+  });
+
+  $("#import-floors-file")?.addEventListener("change", async (ev)=>{
+    const file = ev.target.files?.[0];
+    if (!file) return;
+    
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      if (!confirm(`Import ${data.floors?.length || 0} floors? This will replace existing floor configuration but preserve maps.`)) {
+        $("#import-floors-file").value = "";
+        return;
+      }
+      
+      const r = await fetch("/api/import/floors", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
+      });
+      
+      const j = await r.json().catch(()=>({}));
+      $("#import-msg").textContent = r.ok ? (j.message || "Import successful") : (j.error || "Import failed");
+      
+      if (r.ok) {
+        await loadFloors();
+        populateFloorSelectors();
+        populateTableFloorFilter();
+        await refreshPublic();
+        showToast("Floors imported successfully");
+      }
+    } catch(e) {
+      $("#import-msg").textContent = "Import failed: " + e.message;
+    }
+    
+    $("#import-floors-file").value = "";
+  });
+
   // Settings — Machines
   function clearForm(){
     $("#m-id").value=""; $("#m-name").value="";
@@ -374,6 +438,7 @@ document.addEventListener("DOMContentLoaded", () => {
     $("#m-ip").value=""; $("#m-serial").value="";
     $("#m-notes").value=""; $("#m-tcp").value=""; $("#m-check").value="icmp"; $("#m-pos").textContent="(use Map placement)";
     $("#m-category").value="global";
+    $("#m-non-operational").checked = false;
     placement={mid:null,x:null,y:null,floor_id:null};
   }
   $("#clear-form")?.addEventListener("click", clearForm);
@@ -407,6 +472,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tcp_port: +($("#m-tcp").value||0),
       category: $("#m-category").disabled ? "global" : ($("#m-category").value || "global"),
       floor_id: defaultFloorId || undefined,
+      operational: !$("#m-non-operational")?.checked,
     };
     if (placement.x!=null && placement.y!=null){
       body.x=placement.x; body.y=placement.y;
@@ -447,6 +513,9 @@ document.addEventListener("DOMContentLoaded", () => {
       .sort((a,b)=> (a.floor_id||"").localeCompare(b.floor_id||"") || (a.category||"").localeCompare(b.category||"") || (a.name||"").localeCompare(b.name||""))
       .forEach(m=>{
         const floorName = floors.find(f=>f.id===m.floor_id)?.name || m.floor_id || "";
+        const operational = m.operational !== false;
+        const stateLabel = operational ? "Operational" : "Storage";
+        const toggleLabel = operational ? "To Storage" : "To Operational";
         const tr=document.createElement("tr");
         tr.innerHTML=`
           <td>${esc((CAT_LABEL[m.category||"global"])||"Global")}</td>
@@ -455,10 +524,12 @@ document.addEventListener("DOMContentLoaded", () => {
           <td>${esc(m.ip||"")}</td>
           <td>${esc(m.serial||"")}</td>
           <td>${esc(floorName)}</td>
+          <td>${esc(stateLabel)}</td>
           <td>${esc((m.last_status||"down").toUpperCase())}</td>
           <td>${m.last_rtt_ms||0} ms</td>
           <td>
             <button class="btn mini" data-act="edit" data-id="${m.id}">Edit</button>
+            <button class="btn mini" data-act="toggle-op" data-id="${m.id}">${esc(toggleLabel)}</button>
             <button class="btn mini" data-act="ping" data-id="${m.id}">Ping</button>
             <button class="btn mini" data-act="del" data-id="${m.id}">Delete</button>
           </td>`;
@@ -469,11 +540,25 @@ document.addEventListener("DOMContentLoaded", () => {
         const id=b.dataset.id, act=b.dataset.act, m=machines.find(x=>x.id===id);
         if (act==="del"){ if(!confirm("Delete machine?")) return; await fetch("/api/machines/"+id,{method:"DELETE"}); await loadMachinesTable(); refreshPublic(); showToast("Machine deleted"); }
         else if (act==="ping"){ const res=await fetch("/api/ping/"+id); await res.json().catch(()=>null); await loadMachinesTable(); refreshPublic(); }
+        else if (act==="toggle-op" && m){
+          const newState = !m.operational;
+          const body = { operational: newState };
+          const r = await fetch(`/api/machines/${id}`, {method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+          if (r.ok) {
+            await loadMachinesTable(); 
+            await loadStorageDevices(); 
+            await refreshPublic(); 
+            showToast(newState ? "Device moved to operational" : "Device moved to storage");
+          } else {
+            showToast("Failed to change device state");
+          }
+        }
         else if (act==="edit" && m){
           $("#m-id").value=m.id; $("#m-name").value=m.name||"";
           $("#m-os").value=m.os||""; // set dropdown
           $("#m-ip").value=m.ip||""; $("#m-serial").value=m.serial||"";
           $("#m-notes").value=m.notes||""; $("#m-category").value=m.category||"global";
+          $("#m-non-operational").checked = !m.operational;
           $("#m-pos").textContent = (typeof m.x==="number"&&typeof m.y==="number") ? `x:${m.x.toFixed(3)}, y:${m.y.toFixed(3)}` : "(use Map placement)";
           placement={mid:m.id,x:m.x,y:m.y,floor_id:m.floor_id};
           syncFloorCategoriesUI();
@@ -622,6 +707,15 @@ document.addEventListener("DOMContentLoaded", () => {
   storageToggle?.addEventListener("click", ()=>{
     storagePanel?.classList.toggle("collapsed");
     storageToggle.textContent = storagePanel?.classList.contains("collapsed") ? "▶" : "◀";
+    storageToggle.setAttribute("title", storagePanel?.classList.contains("collapsed") ? "Expand panel" : "Collapse panel");
+  });
+  
+  // Keyboard support for storage toggle
+  storageToggle?.addEventListener("keydown", (ev)=>{
+    if (ev.key === "Enter" || ev.key === " "){
+      ev.preventDefault();
+      storageToggle.click();
+    }
   });
 
   // Populate floor dropdown for storage
