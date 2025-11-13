@@ -615,8 +615,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Toggle panel collapse
   storageToggle?.addEventListener("click", ()=>{
-    storagePanel?.classList.toggle("collapsed");
-    storageToggle.textContent = storagePanel?.classList.contains("collapsed") ? "▶" : "◀";
+    const isCollapsed = storagePanel?.classList.toggle("collapsed");
+    storageToggle.textContent = isCollapsed ? "▶" : "◀";
+    storageToggle.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+    storageToggle.title = isCollapsed ? "Expand panel" : "Collapse panel";
   });
 
   // Populate floor dropdown for storage
