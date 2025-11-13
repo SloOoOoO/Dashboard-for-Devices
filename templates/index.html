@@ -95,11 +95,13 @@
 
       <!-- Storage Inventory Panel (right side) -->
       <aside id="storage-panel" class="storage-panel">
+        <button id="storage-handle" class="storage-handle" title="Expand/Collapse panel" aria-label="Expand or collapse storage panel" aria-expanded="true">◀</button>
         <div class="storage-head">
           <strong>Storage Inventory</strong>
-          <button id="storage-toggle" class="btn mini" title="Collapse panel">◀</button>
+          <button id="storage-toggle" class="btn mini" title="Collapse panel" aria-expanded="true">◀</button>
         </div>
         <div class="storage-body">
+          <div id="storage-lock-msg" class="storage-lock-msg hidden">🔒 Sign in to add or promote devices</div>
           <div class="storage-add">
             <h4>Add to Storage</h4>
             <label>Name<input id="stor-name" class="field" placeholder="Device name"/></label>

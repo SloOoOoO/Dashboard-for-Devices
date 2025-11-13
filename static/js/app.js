@@ -63,6 +63,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tab==="settings") checkAuth();
   });
 
+  // Storage Inventory Panel - declare elements and variables early
+  let storageDevices = [];
+  let promotingDevice = null;
+  const storagePanel = $("#storage-panel");
+  const storageToggle = $("#storage-toggle");
+  const storageHandle = $("#storage-handle");
+  const storageItems = $("#storage-items");
+  const storFloor = $("#stor-floor");
+  const storageLockMsg = $("#storage-lock-msg");
+
   // Auth lock
   function setSettingsEnabled(on){
     authed=!!on;
@@ -72,8 +82,23 @@ document.addEventListener("DOMContentLoaded", () => {
       el.disabled=!on;
     });
     $("#ping-all") && ($("#ping-all").disabled=!on);
+    setStorageEditable(on);
   }
   setSettingsEnabled(false);
+
+  // Storage panel auth control (forward declaration of renderStorageDevices used later)
+  function setStorageEditable(on){
+    const isEditable = !!on;
+    // Show/hide lock message
+    storageLockMsg?.classList.toggle("hidden", isEditable);
+    // Enable/disable add form
+    ["#stor-name", "#stor-category", "#stor-floor", "#stor-save"].forEach(sel => {
+      const el = $(sel);
+      if (el) el.disabled = !isEditable;
+    });
+    // Re-render storage devices to update button states (if function exists)
+    if (typeof renderStorageDevices === 'function') renderStorageDevices();
+  }
 
   async function checkAuth(){
     const j = await fetch("/api/whoami").then(r=>r.json()).catch(()=>({authenticated:false}));
@@ -85,6 +110,9 @@ document.addEventListener("DOMContentLoaded", () => {
       await loadMachinesTable();
       await showConverters();
       syncFloorCategoriesUI();
+    } else {
+      // Ensure storage panel reflects unauthenticated state
+      setStorageEditable(false);
     }
   }
 
@@ -600,7 +628,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Map tab init + auto refresh
   async function initMapTab(){ await loadFloors(); await refreshPublic(); await syncAuth(); }
-  async function syncAuth(){ const j=await fetch("/api/whoami").then(r=>r.json()).catch(()=>({authenticated:false})); $("#ping-all") && ($("#ping-all").disabled = !j.authenticated); }
+  async function syncAuth(){ 
+    const j=await fetch("/api/whoami").then(r=>r.json()).catch(()=>({authenticated:false})); 
+    authed = !!j.authenticated;
+    $("#ping-all") && ($("#ping-all").disabled = !j.authenticated); 
+    setStorageEditable(j.authenticated);
+  }
   function startAutoRefresh(){ if(timer) clearInterval(timer); const secs=+($("#refresh-interval")?.value||60); timer=setInterval(refreshPublic, secs*1000); }
   $("#refresh-interval")?.addEventListener("change", startAutoRefresh);
   $("#refresh")?.addEventListener("click", refreshPublic);
@@ -610,19 +643,35 @@ document.addEventListener("DOMContentLoaded", () => {
   creditWrap?.addEventListener("mouseenter", ()=> $("#credit-tip")?.classList.add("show"));
   creditWrap?.addEventListener("mouseleave", ()=> $("#credit-tip")?.classList.remove("show"));
 
-  // Storage Inventory Panel
-  let storageDevices = [];
-  let promotingDevice = null;
-  const storagePanel = $("#storage-panel");
-  const storageToggle = $("#storage-toggle");
-  const storageItems = $("#storage-items");
-  const storFloor = $("#stor-floor");
+  // Storage Inventory Panel - Collapse/Expand functionality
+  // (Variables already declared earlier)
+
+  // Set storage collapsed state
+  function setStorageCollapsed(collapsed){
+    if (!storagePanel) return;
+    storagePanel.classList.toggle("collapsed", collapsed);
+    const icon = collapsed ? "▶" : "◀";
+    if (storageToggle) {
+      storageToggle.textContent = icon;
+      storageToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      storageToggle.title = collapsed ? "Expand panel" : "Collapse panel";
+    }
+    if (storageHandle) {
+      storageHandle.textContent = icon;
+      storageHandle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      storageHandle.title = collapsed ? "Expand panel" : "Collapse panel";
+    }
+  }
 
   // Toggle panel collapse
-  storageToggle?.addEventListener("click", ()=>{
-    storagePanel?.classList.toggle("collapsed");
-    storageToggle.textContent = storagePanel?.classList.contains("collapsed") ? "▶" : "◀";
-  });
+  function toggleStorageCollapsed(){
+    const isCollapsed = storagePanel?.classList.contains("collapsed");
+    setStorageCollapsed(!isCollapsed);
+  }
+
+  // Wire both toggle buttons
+  storageToggle?.addEventListener("click", toggleStorageCollapsed);
+  storageHandle?.addEventListener("click", toggleStorageCollapsed);
 
   // Populate floor dropdown for storage
   function populateStorageFloors(){
@@ -649,9 +698,12 @@ document.addEventListener("DOMContentLoaded", () => {
       storageItems.innerHTML = '<div class="muted" style="padding:8px;">No devices in storage</div>';
       return;
     }
+    const isEditable = authed;
     storageItems.innerHTML = storageDevices.map(m=>{
       const floorName = floors.find(f=>f.id===m.floor_id)?.name || m.floor_id || "—";
       const cat = CAT_LABEL[m.category||"global"] || "Global";
+      const disabledAttr = isEditable ? '' : ' disabled';
+      const titleAttr = isEditable ? '' : ' title="Sign in to promote devices"';
       return `
         <div class="storage-item" data-id="${m.id}">
           <div class="storage-item-header">
@@ -662,7 +714,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div>Floor: ${esc(floorName)}</div>
             ${m.ip ? `<div>IP: ${esc(m.ip)}</div>` : ''}
           </div>
-          <button class="btn mini" data-act="promote" data-id="${m.id}">Make operational</button>
+          <button class="btn mini" data-act="promote" data-id="${m.id}"${disabledAttr}${titleAttr}>Make operational</button>
         </div>
       `;
     }).join("");
