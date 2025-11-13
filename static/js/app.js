@@ -684,7 +684,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Map tab init + auto refresh
-  async function initMapTab(){ await loadFloors(); await refreshPublic(); await syncAuth(); }
+  async function initMapTab(){ await loadFloors(); await refreshPublic(); await syncAuth(); await loadStorageDevices(); }
   async function syncAuth(){ const j=await fetch("/api/whoami").then(r=>r.json()).catch(()=>({authenticated:false})); $("#ping-all") && ($("#ping-all").disabled = !j.authenticated); }
   function startAutoRefresh(){ if(timer) clearInterval(timer); const secs=+($("#refresh-interval")?.value||60); timer=setInterval(refreshPublic, secs*1000); }
   $("#refresh-interval")?.addEventListener("change", startAutoRefresh);
