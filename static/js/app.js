@@ -382,103 +382,58 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Export floors (backup)
-  $("#export-floors")?.addEventListener("click", async ()=>{
-    try {
-      const r = await fetch("/api/export/floors");
-      if (!r.ok) {
-        showToast("Export failed");
-        return;
-      }
-      const blob = await r.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `floors-backup-${new Date().toISOString().slice(0,10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      showToast("Floors exported successfully");
-    } catch(e) {
-      showToast("Export failed: " + e.message);
-    }
-  });
-
-  // Import floors (restore)
-  $("#import-floors")?.addEventListener("click", ()=>{
-    $("#import-floors-file").click();
-  });
-
-  $("#import-floors-file")?.addEventListener("change", async (ev)=>{
-    const file = ev.target.files?.[0];
-    if (!file) return;
-    
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      
-      if (!confirm(`Import ${data.floors?.length || 0} floors? This will replace existing floor configuration but preserve maps.`)) {
-        $("#import-floors-file").value = "";
-        return;
-      }
-      
-      const r = await fetch("/api/import/floors", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(data)
-      });
-      
-      const j = await r.json().catch(()=>({}));
-      $("#import-msg").textContent = r.ok ? (j.message || "Import successful") : (j.error || "Import failed");
-      
-      if (r.ok) {
-        await loadFloors();
-        populateFloorSelectors();
-        populateTableFloorFilter();
-        await refreshPublic();
-        showToast("Floors imported successfully");
-      }
-    } catch(e) {
-      $("#import-msg").textContent = "Import failed: " + e.message;
-    }
-    
-    $("#import-floors-file").value = "";
-  });
-
-  // Export devices (all machines)
-  $("#export-devices")?.addEventListener("click", async ()=>{
+  // Export combined backup (floors + devices)
+  $("#export-backup")?.addEventListener("click", async ()=>{
     // Show confirmation dialog
     if (!confirm("Do You Want to Download Backup")) {
       return;
     }
     
     try {
-      const r = await fetch("/api/export/machines");
-      if (!r.ok) {
+      // Fetch both floors and machines data
+      const [floorsRes, machinesRes] = await Promise.all([
+        fetch("/api/export/floors"),
+        fetch("/api/export/machines")
+      ]);
+      
+      if (!floorsRes.ok || !machinesRes.ok) {
         showToast("Export failed");
         return;
       }
-      const blob = await r.blob();
+      
+      const floorsData = await floorsRes.json();
+      const machinesData = await machinesRes.json();
+      
+      // Combine the data
+      const combinedData = {
+        version: machinesData.version || floorsData.version,
+        exported_at: new Date().toISOString() + "Z",
+        floors: floorsData.floors || [],
+        machines: machinesData.machines || []
+      };
+      
+      // Create download
+      const blob = new Blob([JSON.stringify(combinedData, null, 2)], {type: "application/json"});
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `devices-export-${new Date().toISOString().slice(0,10)}.json`;
+      a.download = `backup-${new Date().toISOString().slice(0,10)}.json`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      showToast("Devices exported successfully");
+      showToast("Backup exported successfully");
     } catch(e) {
       showToast("Export failed: " + e.message);
     }
   });
 
-  // Import devices (all machines)
-  $("#import-devices")?.addEventListener("click", ()=>{
-    $("#import-devices-file").click();
+  // Import combined backup (floors + devices)
+  $("#import-backup")?.addEventListener("click", ()=>{
+    $("#import-backup-file").click();
   });
 
-  $("#import-devices-file")?.addEventListener("change", async (ev)=>{
+  $("#import-backup-file")?.addEventListener("change", async (ev)=>{
     const file = ev.target.files?.[0];
     if (!file) return;
     
@@ -486,38 +441,67 @@ document.addEventListener("DOMContentLoaded", () => {
       const text = await file.text();
       const data = JSON.parse(text);
       
+      const floorCount = data.floors?.length || 0;
       const machineCount = data.machines?.length || 0;
-      if (!confirm(`Import ${machineCount} devices? This will upsert (add or replace) devices from the backup.`)) {
-        $("#import-devices-file").value = "";
+      
+      if (!confirm(`Import ${floorCount} floors and ${machineCount} devices? This will restore the backup.`)) {
+        $("#import-backup-file").value = "";
         return;
       }
       
-      const r = await fetch("/api/import/machines", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(data)
-      });
+      // Import floors first, then devices
+      let floorsSuccess = false;
+      let devicesSuccess = false;
+      let statusMsg = "";
       
-      const j = await r.json().catch(()=>({}));
-      const msg = r.ok 
-        ? `Imported ${j.total || 0} devices (${j.upserted || 0} new, ${j.replaced || 0} replaced)` 
-        : (j.error || "Import failed");
-      $("#import-devices-msg").textContent = msg;
+      // Import floors
+      if (data.floors && data.floors.length > 0) {
+        const floorsRes = await fetch("/api/import/floors", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({floors: data.floors})
+        });
+        const floorsJson = await floorsRes.json().catch(()=>({}));
+        floorsSuccess = floorsRes.ok;
+        if (floorsSuccess) {
+          statusMsg += `Floors: ${floorsJson.message || "OK"}. `;
+        } else {
+          statusMsg += `Floors: ${floorsJson.error || "Failed"}. `;
+        }
+      }
       
-      if (r.ok) {
+      // Import devices
+      if (data.machines && data.machines.length > 0) {
+        const devicesRes = await fetch("/api/import/machines", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({machines: data.machines})
+        });
+        const devicesJson = await devicesRes.json().catch(()=>({}));
+        devicesSuccess = devicesRes.ok;
+        if (devicesSuccess) {
+          statusMsg += `Devices: ${devicesJson.total || 0} imported (${devicesJson.upserted || 0} new, ${devicesJson.replaced || 0} replaced)`;
+        } else {
+          statusMsg += `Devices: ${devicesJson.error || "Failed"}`;
+        }
+      }
+      
+      $("#backup-msg").textContent = statusMsg;
+      
+      if (floorsSuccess || devicesSuccess) {
         await loadFloors();
         populateFloorSelectors();
         populateTableFloorFilter();
         await loadMachinesTable();
         await loadStorageDevices();
         await refreshPublic();
-        showToast("Devices imported successfully");
+        showToast("Backup imported successfully");
       }
     } catch(e) {
-      $("#import-devices-msg").textContent = "Import failed: " + e.message;
+      $("#backup-msg").textContent = "Import failed: " + e.message;
     }
     
-    $("#import-devices-file").value = "";
+    $("#import-backup-file").value = "";
   });
 
   // Settings — Machines

@@ -206,18 +206,12 @@
             <span id="upload-msg" class="muted"></span>
           </div>
           <h4>Backup &amp; Restore</h4>
+          <p class="muted">Export/import floors and all devices (operational and storage) with locations.</p>
           <div class="row">
-            <button id="export-floors" class="btn">Export floors</button>
-            <input type="file" id="import-floors-file" accept=".json" style="display:none"/>
-            <button id="import-floors" class="btn">Import floors</button>
-            <span id="import-msg" class="muted"></span>
-          </div>
-          <p class="muted">Export/import all devices (operational and storage) with locations for selected floor.</p>
-          <div class="row">
-            <button id="export-devices" class="btn">Export devices</button>
-            <input type="file" id="import-devices-file" accept=".json" style="display:none"/>
-            <button id="import-devices" class="btn">Import devices</button>
-            <span id="import-devices-msg" class="muted"></span>
+            <button id="export-backup" class="btn">Export</button>
+            <input type="file" id="import-backup-file" accept=".json" style="display:none"/>
+            <button id="import-backup" class="btn">Import</button>
+            <span id="backup-msg" class="muted"></span>
           </div>
           <div class="muted" id="conv-status">Converters: PDF —</div>
         </div>
