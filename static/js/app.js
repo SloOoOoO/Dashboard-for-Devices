@@ -81,6 +81,11 @@ document.addEventListener("DOMContentLoaded", () => {
       if (el.id==="storage-toggle") return;
       el.disabled=!on;
     });
+    
+    // Update storage form validation after auth change
+    if (typeof validateStorageForm === 'function') {
+      setTimeout(validateStorageForm, 0);
+    }
   }
   setSettingsEnabled(false);
 
@@ -769,7 +774,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Map tab init + auto refresh
   async function initMapTab(){ await loadFloors(); await refreshPublic(); await syncAuth(); await loadStorageDevices(); }
-  async function syncAuth(){ const j=await fetch("/api/whoami").then(r=>r.json()).catch(()=>({authenticated:false})); $("#ping-all") && ($("#ping-all").disabled = !j.authenticated); }
+  async function syncAuth(){ 
+    const j=await fetch("/api/whoami").then(r=>r.json()).catch(()=>({authenticated:false})); 
+    $("#ping-all") && ($("#ping-all").disabled = !j.authenticated); 
+    // Update storage form lock state
+    const storageLockNote = $(".storage-lock-note");
+    storageLockNote?.classList.toggle("hidden", !!j.authenticated);
+    $$("#storage-panel input, #storage-panel select, #storage-panel textarea, #storage-panel button").forEach(el=>{
+      if (el.id==="storage-toggle") return;
+      el.disabled=!j.authenticated;
+    });
+    if (typeof validateStorageForm === 'function') {
+      setTimeout(validateStorageForm, 0);
+    }
+  }
   function startAutoRefresh(){ if(timer) clearInterval(timer); const secs=+($("#refresh-interval")?.value||60); timer=setInterval(refreshPublic, secs*1000); }
   $("#refresh-interval")?.addEventListener("change", startAutoRefresh);
   $("#refresh")?.addEventListener("click", refreshPublic);
@@ -1109,6 +1127,7 @@ document.addEventListener("DOMContentLoaded", () => {
     await refreshPublic(); 
     await loadStorageDevices();
     await checkAuth(); 
+    validateStorageForm(); // Initialize form validation state
     startAutoRefresh(); 
   })();
 });
