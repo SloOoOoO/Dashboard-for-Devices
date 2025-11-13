@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Ford Device Dashboard by TechM</title>
+  <title>{{ app_name }}</title>
   <link rel="stylesheet" href="/static/css/styles.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <header class="nav">
-    <div class="brand"><div class="logo"></div><span>Ford Device Dashboard by TechM</span></div>
+    <div class="brand"><div class="logo"></div><span>{{ app_name }}</span></div>
     <div class="segmented">
       <button class="seg active" data-tab="map">Map</button>
       <button class="seg" data-tab="settings">Client Settings</button>
@@ -92,6 +92,37 @@
         <span class="dot ok"></span>Up
         <span class="dot down"></span>Down
       </div>
+
+      <!-- Storage Inventory Panel (right side) -->
+      <aside id="storage-panel" class="storage-panel">
+        <div class="storage-head">
+          <strong>Storage Inventory</strong>
+          <button id="storage-toggle" class="btn mini" title="Collapse panel">◀</button>
+        </div>
+        <div class="storage-body">
+          <div class="storage-add">
+            <h4>Add to Storage</h4>
+            <label>Name<input id="stor-name" class="field" placeholder="Device name"/></label>
+            <label>Category
+              <select id="stor-category" class="field">
+                <option value="global">Global clients</option>
+                <option value="apple">Apple devices</option>
+                <option value="dzb">DZB</option>
+                <option value="brightsign">BrightSign</option>
+              </select>
+            </label>
+            <label>Floor
+              <select id="stor-floor" class="field"></select>
+            </label>
+            <button id="stor-save" class="btn primary">Add to Storage</button>
+            <div id="stor-error" class="error"></div>
+          </div>
+          <div class="storage-list">
+            <h4>Storage Devices</h4>
+            <div id="storage-items"></div>
+          </div>
+        </div>
+      </aside>
 
       <aside id="drawer" class="drawer hidden">
         <div class="drawer-head"><div><strong id="d-title">Machine details</strong></div><button id="drawer-close" class="btn mini">Close</button></div>
@@ -223,10 +254,10 @@
 
   <!-- Credits button -->
   <div class="credit-wrap">
-    <button id="credit-btn" class="btn credit">Credit</button>
-    <div id="credit-tip" class="credit-tip">
-      <div><strong>Created:</strong> Sühan Sari (SSARI9@ford.com)</div>
-      <div><strong>Contact:</strong> ithelp@ford.com</div>
+    <button id="credit-btn" class="btn credit" aria-describedby="credit-tip" title="Credits">Credits</button>
+    <div id="credit-tip" class="credit-tip" role="tooltip">
+      <div><strong>Created by:</strong> Sühan Sari (<a href="mailto:ssari@ford.com">ssari@ford.com</a>)</div>
+      <div><strong>Contact:</strong> <a href="mailto:ithelp@ford.com">ithelp@ford.com</a></div>
     </div>
   </div>
 

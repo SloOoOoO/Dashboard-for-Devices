@@ -378,6 +378,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   $("#clear-form")?.addEventListener("click", clearForm);
 
+  // Keyboard shortcuts for machine form
+  const machineFormInputs = ["#m-name", "#m-ip", "#m-serial", "#m-tcp"];
+  machineFormInputs.forEach(sel=>{
+    $(sel)?.addEventListener("keydown", (ev)=>{
+      if (ev.key === "Enter"){
+        ev.preventDefault();
+        $("#save-machine")?.click();
+      } else if (ev.key === "Escape"){
+        clearForm();
+      }
+    });
+  });
+
   $("#save-machine")?.addEventListener("click", async ()=>{
     const name=$("#m-name").value.trim();
     const ip=$("#m-ip").value.trim();
@@ -597,6 +610,253 @@ document.addEventListener("DOMContentLoaded", () => {
   creditWrap?.addEventListener("mouseenter", ()=> $("#credit-tip")?.classList.add("show"));
   creditWrap?.addEventListener("mouseleave", ()=> $("#credit-tip")?.classList.remove("show"));
 
+  // Storage Inventory Panel
+  let storageDevices = [];
+  let promotingDevice = null;
+  const storagePanel = $("#storage-panel");
+  const storageToggle = $("#storage-toggle");
+  const storageItems = $("#storage-items");
+  const storFloor = $("#stor-floor");
+
+  // Toggle panel collapse
+  storageToggle?.addEventListener("click", ()=>{
+    storagePanel?.classList.toggle("collapsed");
+    storageToggle.textContent = storagePanel?.classList.contains("collapsed") ? "▶" : "◀";
+  });
+
+  // Populate floor dropdown for storage
+  function populateStorageFloors(){
+    if (!storFloor) return;
+    storFloor.innerHTML = floors.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join("");
+    if (currentFloor) storFloor.value = currentFloor.id;
+  }
+
+  // Load storage devices
+  async function loadStorageDevices(){
+    try {
+      const r = await fetch("/api/public/storage", {cache:"no-store"});
+      storageDevices = await r.json();
+      renderStorageDevices();
+    } catch(e){
+      console.error("Failed to load storage devices:", e);
+    }
+  }
+
+  // Render storage devices
+  function renderStorageDevices(){
+    if (!storageItems) return;
+    if (storageDevices.length === 0){
+      storageItems.innerHTML = '<div class="muted" style="padding:8px;">No devices in storage</div>';
+      return;
+    }
+    storageItems.innerHTML = storageDevices.map(m=>{
+      const floorName = floors.find(f=>f.id===m.floor_id)?.name || m.floor_id || "—";
+      const cat = CAT_LABEL[m.category||"global"] || "Global";
+      return `
+        <div class="storage-item" data-id="${m.id}">
+          <div class="storage-item-header">
+            <span class="storage-item-name">${esc(m.name||"(unnamed)")}</span>
+          </div>
+          <div class="storage-item-details">
+            <div>Category: ${esc(cat)}</div>
+            <div>Floor: ${esc(floorName)}</div>
+            ${m.ip ? `<div>IP: ${esc(m.ip)}</div>` : ''}
+          </div>
+          <button class="btn mini" data-act="promote" data-id="${m.id}">Make operational</button>
+        </div>
+      `;
+    }).join("");
+
+    // Add event listeners
+    storageItems.querySelectorAll("button").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.dataset.id;
+        const device = storageDevices.find(d=>d.id===id);
+        if (!device) return;
+        
+        if (btn.dataset.act === "promote"){
+          startPromotionMode(device);
+        }
+      });
+    });
+  }
+
+  // Add device to storage
+  $("#stor-save")?.addEventListener("click", async ()=>{
+    const name = $("#stor-name")?.value.trim();
+    const category = $("#stor-category")?.value || "global";
+    const floor_id = $("#stor-floor")?.value;
+    const errorEl = $("#stor-error");
+    
+    if (errorEl) errorEl.textContent = "";
+    
+    // Validation
+    if (!name){
+      if (errorEl) errorEl.textContent = "Name is required";
+      return;
+    }
+    if (!category){
+      if (errorEl) errorEl.textContent = "Category is required";
+      return;
+    }
+    if (!floor_id){
+      if (errorEl) errorEl.textContent = "Floor is required";
+      return;
+    }
+
+    const body = {
+      name,
+      category,
+      floor_id,
+      operational: false,
+      ip: "",
+      serial: "",
+      os: "",
+      notes: ""
+    };
+
+    try {
+      const r = await fetch("/api/machines", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(body)
+      });
+      
+      if (!r.ok){
+        const j = await r.json().catch(()=>({}));
+        if (errorEl) errorEl.textContent = j.error || "Failed to add device";
+        return;
+      }
+      
+      // Clear form
+      $("#stor-name").value = "";
+      $("#stor-category").value = "global";
+      
+      await loadStorageDevices();
+      showToast("Device added to storage");
+    } catch(e){
+      if (errorEl) errorEl.textContent = "Failed to add device";
+    }
+  });
+
+  // Keyboard support for storage form
+  $("#stor-name")?.addEventListener("keydown", (ev)=>{
+    if (ev.key === "Enter"){
+      ev.preventDefault();
+      $("#stor-save")?.click();
+    }
+  });
+
+  // Start promotion mode
+  function startPromotionMode(device){
+    promotingDevice = device;
+    
+    // Switch to map tab if not already there
+    const mapTab = $('[data-tab="map"]');
+    if (mapTab && !mapTab.classList.contains("active")){
+      mapTab.click();
+    }
+    
+    // Show placement modal
+    setTimeout(async ()=>{
+      await loadFloors();
+      const startFid = device.floor_id || currentFloor?.id || floors[0].id;
+      placeFloor.innerHTML=floors.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join("");
+      placeFloor.value=startFid;
+
+      await loadMachinesTable();
+      placeMachine.innerHTML=`<option value="${device.id}" selected>${esc(device.name||device.id)}</option>`;
+      
+      placement.mid = device.id;
+      placement.floor_id = startFid;
+      placement.x = null;
+      placement.y = null;
+
+      loadPlacementMap();
+      placeModal.classList.remove("hidden");
+      
+      showToast("Click on the map to place the device");
+    }, 100);
+  }
+
+  // Override place-save to handle promotion
+  const originalPlaceSave = $("#place-save");
+  if (originalPlaceSave){
+    const origHandler = originalPlaceSave.onclick;
+    $("#place-save").onclick = null;
+    $("#place-save").addEventListener("click", async ()=>{
+      if (!placement.floor_id){ showToast("Choose a floor"); return; }
+      if (placement.x==null || placement.y==null){ showToast("Click on the map to set a position"); return; }
+      
+      // Check if we're promoting a storage device
+      if (promotingDevice && placement.mid === promotingDevice.id){
+        const body = { 
+          x: placement.x, 
+          y: placement.y, 
+          floor_id: placement.floor_id,
+          operational: true
+        };
+        const r = await fetch("/api/machines/"+placement.mid, {
+          method:"PUT", 
+          headers:{"Content-Type":"application/json"}, 
+          body:JSON.stringify(body)
+        });
+        if(!r.ok){
+          let j={}; try{ j=await r.json(); }catch{}
+          showToast("Promotion failed"+(j.error?`: ${j.error}`:""));
+          return;
+        }
+        const target=floors.find(f=>f.id===placement.floor_id);
+        if (target && floorSel){ currentFloor=target; floorSel.value=target.id; }
+        placeModal.classList.add("hidden");
+        promotingDevice = null;
+        await loadStorageDevices();
+        await loadMachinesTable(); 
+        await refreshPublic(); 
+        showToast("Device promoted to operational");
+        return;
+      }
+      
+      // Original logic for non-storage devices
+      if (!placement.mid){
+        $("#m-pos").textContent=`x:${placement.x.toFixed(3)}, y:${placement.y.toFixed(3)}`;
+        placeModal.classList.add("hidden");
+        return;
+      }
+      const body={ x:placement.x, y:placement.y, floor_id:placement.floor_id };
+      const r=await fetch("/api/machines/"+placement.mid,{method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+      if(!r.ok){
+        let j={}; try{ j=await r.json(); }catch{}
+        showToast("Saving position failed"+(j.error?`: ${j.error}`:""));
+        return;
+      }
+      const target=floors.find(f=>f.id===placement.floor_id);
+      if (target && floorSel){ currentFloor=target; floorSel.value=target.id; }
+      placeModal.classList.add("hidden");
+      await loadMachinesTable(); await refreshPublic(); showToast("Position saved");
+    });
+  }
+
+  // Cancel promotion on Escape or close
+  $("#place-close")?.addEventListener("click", ()=>{
+    promotingDevice = null;
+    placeModal.classList.add("hidden");
+  });
+  
+  document.addEventListener("keydown", (ev)=>{
+    if (ev.key === "Escape" && !placeModal?.classList.contains("hidden")){
+      promotingDevice = null;
+      placeModal.classList.add("hidden");
+    }
+  });
+
   // Boot
-  (async function boot(){ await loadFloors(); await refreshPublic(); await checkAuth(); startAutoRefresh(); })();
+  (async function boot(){ 
+    await loadFloors(); 
+    populateStorageFloors();
+    await refreshPublic(); 
+    await loadStorageDevices();
+    await checkAuth(); 
+    startAutoRefresh(); 
+  })();
 });
