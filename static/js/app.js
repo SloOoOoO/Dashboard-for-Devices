@@ -72,8 +72,21 @@ document.addEventListener("DOMContentLoaded", () => {
       el.disabled=!on;
     });
     $("#ping-all") && ($("#ping-all").disabled=!on);
+    setStorageEditEnabled(on);
   }
   setSettingsEnabled(false);
+  
+  // Storage auth control
+  function setStorageEditEnabled(on){
+    const authMsg = $("#storage-auth-msg");
+    if (authMsg) authMsg.classList.toggle("hidden", on);
+    
+    // Disable/enable storage form inputs
+    $("#stor-name") && ($("#stor-name").disabled = !on);
+    $("#stor-category") && ($("#stor-category").disabled = !on);
+    $("#stor-floor") && ($("#stor-floor").disabled = !on);
+    $("#stor-save") && ($("#stor-save").disabled = !on);
+  }
 
   async function checkAuth(){
     const j = await fetch("/api/whoami").then(r=>r.json()).catch(()=>({authenticated:false}));
@@ -86,13 +99,15 @@ document.addEventListener("DOMContentLoaded", () => {
       await showConverters();
       syncFloorCategoriesUI();
     }
+    // Re-render storage devices to update button states
+    renderStorageDevices();
   }
 
   $("#login")?.addEventListener("click", async ()=>{
     const pw=$("#pw")?.value||""; const r=await fetch("/api/login",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({password:pw})});
-    if (r.ok){ $("#login-msg").textContent=""; await checkAuth(); showToast("Signed in"); } else { $("#login-msg").textContent="Invalid password."; }
+    if (r.ok){ $("#login-msg").textContent=""; await checkAuth(); await loadStorageDevices(); showToast("Signed in"); } else { $("#login-msg").textContent="Invalid password."; }
   });
-  $("#logout")?.addEventListener("click", async ()=>{ await fetch("/api/logout",{method:"POST"}); await checkAuth(); showToast("Signed out"); });
+  $("#logout")?.addEventListener("click", async ()=>{ await fetch("/api/logout",{method:"POST"}); await checkAuth(); await loadStorageDevices(); showToast("Signed out"); });
 
   async function showConverters(){
     try{
@@ -600,7 +615,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Map tab init + auto refresh
   async function initMapTab(){ await loadFloors(); await refreshPublic(); await syncAuth(); }
-  async function syncAuth(){ const j=await fetch("/api/whoami").then(r=>r.json()).catch(()=>({authenticated:false})); $("#ping-all") && ($("#ping-all").disabled = !j.authenticated); }
+  async function syncAuth(){ 
+    const j=await fetch("/api/whoami").then(r=>r.json()).catch(()=>({authenticated:false})); 
+    authed = !!j.authenticated;
+    $("#ping-all") && ($("#ping-all").disabled = !j.authenticated); 
+    setStorageEditEnabled(j.authenticated);
+    renderStorageDevices();
+  }
   function startAutoRefresh(){ if(timer) clearInterval(timer); const secs=+($("#refresh-interval")?.value||60); timer=setInterval(refreshPublic, secs*1000); }
   $("#refresh-interval")?.addEventListener("change", startAutoRefresh);
   $("#refresh")?.addEventListener("click", refreshPublic);
@@ -615,14 +636,25 @@ document.addEventListener("DOMContentLoaded", () => {
   let promotingDevice = null;
   const storagePanel = $("#storage-panel");
   const storageToggle = $("#storage-toggle");
+  const storageEdgeHandle = $("#storage-edge-handle");
   const storageItems = $("#storage-items");
   const storFloor = $("#stor-floor");
+  const storageAuthMsg = $("#storage-auth-msg");
 
   // Toggle panel collapse
-  storageToggle?.addEventListener("click", ()=>{
-    storagePanel?.classList.toggle("collapsed");
-    storageToggle.textContent = storagePanel?.classList.contains("collapsed") ? "▶" : "◀";
-  });
+  function toggleStoragePanel(){
+    const isCollapsed = storagePanel?.classList.toggle("collapsed");
+    const icon = isCollapsed ? "▶" : "◀";
+    if (storageToggle) storageToggle.textContent = icon;
+    if (storageEdgeHandle){
+      storageEdgeHandle.textContent = icon;
+      storageEdgeHandle.setAttribute("aria-expanded", !isCollapsed);
+      storageEdgeHandle.title = isCollapsed ? "Expand panel" : "Collapse panel";
+    }
+  }
+  
+  storageToggle?.addEventListener("click", toggleStoragePanel);
+  storageEdgeHandle?.addEventListener("click", toggleStoragePanel);
 
   // Populate floor dropdown for storage
   function populateStorageFloors(){
@@ -662,7 +694,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div>Floor: ${esc(floorName)}</div>
             ${m.ip ? `<div>IP: ${esc(m.ip)}</div>` : ''}
           </div>
-          <button class="btn mini" data-act="promote" data-id="${m.id}">Make operational</button>
+          <button class="btn mini" data-act="promote" data-id="${m.id}" ${authed ? '' : 'disabled'}>Make operational</button>
         </div>
       `;
     }).join("");
@@ -670,6 +702,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // Add event listeners
     storageItems.querySelectorAll("button").forEach(btn=>{
       btn.addEventListener("click", async ()=>{
+        if (!authed){
+          showToast("Sign in to edit storage");
+          return;
+        }
         const id = btn.dataset.id;
         const device = storageDevices.find(d=>d.id===id);
         if (!device) return;
@@ -683,6 +719,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Add device to storage
   $("#stor-save")?.addEventListener("click", async ()=>{
+    if (!authed){
+      showToast("Sign in to add devices to storage");
+      return;
+    }
+    
     const name = $("#stor-name")?.value.trim();
     const category = $("#stor-category")?.value || "global";
     const floor_id = $("#stor-floor")?.value;

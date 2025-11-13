@@ -149,9 +149,14 @@ html[data-theme="dark"] .dot{border-color:rgba(255,255,255,0.2)}
 
 /* Storage Panel */
 .storage-panel{position:fixed;right:16px;top:86px;bottom:16px;width:380px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:10px;z-index:3100;display:flex;flex-direction:column;transition:transform 0.2s ease}
-.storage-panel.collapsed{transform:translateX(calc(100% - 40px))}
+.storage-panel.collapsed{transform:translateX(calc(100% - 48px))}
+.storage-edge-handle{position:absolute;left:0;top:50%;transform:translateY(-50%);width:32px;height:64px;background:var(--surface);border:1px solid var(--border);border-right:none;border-radius:8px 0 0 8px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:var(--text);z-index:1;transition:left 0.2s ease}
+.storage-panel.collapsed .storage-edge-handle{left:-32px}
+.storage-edge-handle:hover{background:var(--bg2)}
 .storage-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .storage-body{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.storage-auth-msg{padding:8px;background:var(--primary-weak);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;text-align:center}
+.storage-auth-msg.hidden{display:none}
 .storage-add{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--panel)}
 .storage-add label{display:block;margin-bottom:8px;font-size:13px}
 .storage-add label .field{width:100%;min-width:0;margin-top:4px}
