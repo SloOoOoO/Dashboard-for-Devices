@@ -587,7 +587,8 @@ def import_data():
         
         return jsonify({"success": True, "message": "Data imported successfully"})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Import error: {e}")
+        return jsonify({"error": "Failed to import data"}), 500
 
 def generate_id(name: str, ip: str) -> str:
     base = re.sub(r"[^a-z0-9\-]+","", (name or "pc").lower().replace(" ","-"))
