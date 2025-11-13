@@ -369,6 +369,7 @@ document.addEventListener("DOMContentLoaded", () => {
     $("#m-ip").value=""; $("#m-serial").value="";
     $("#m-notes").value=""; $("#m-tcp").value=""; $("#m-check").value="icmp"; $("#m-pos").textContent="(use Map placement)";
     $("#m-category").value="global";
+    $("#m-non-operational") && ($("#m-non-operational").checked = false);
     placement={mid:null,x:null,y:null,floor_id:null};
   }
   $("#clear-form")?.addEventListener("click", clearForm);
@@ -391,6 +392,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const ip=$("#m-ip").value.trim();
     if (!name && !ip){ showToast("Enter at least a Name or an IP"); return; }
     let defaultFloorId = placement.floor_id || floorSettingsSel?.value || floorSel?.value || (currentFloor?.id||"");
+    const isNonOperational = $("#m-non-operational")?.checked || false;
     const body={
       id: $("#m-id").value || undefined,
       name,
@@ -402,6 +404,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tcp_port: +($("#m-tcp").value||0),
       category: $("#m-category").disabled ? "global" : ($("#m-category").value || "global"),
       floor_id: defaultFloorId || undefined,
+      operational: !isNonOperational,
     };
     if (placement.x!=null && placement.y!=null){
       body.x=placement.x; body.y=placement.y;
@@ -416,7 +419,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     await res.json().catch(()=>null);
     placement={mid:null,x:null,y:null,floor_id:null}; $("#m-pos").textContent="(use Map placement)";
-    await loadMachinesTable(); await refreshPublic(); showToast("Machine saved");
+    $("#m-non-operational").checked = false;
+    await loadMachinesTable(); await loadStorageDevices(); await refreshPublic(); showToast("Machine saved");
   });
 
   $("#clear-pos")?.addEventListener("click", async ()=>{
@@ -429,7 +433,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadMachinesTable(){
     const ms=await fetch("/api/machines").then(r=>r.json()).catch(()=>[]);
-    machines=ms; populateMachinesTableRows();
+    machines=ms; populateMachinesTableRows(); populateStorageSettingsTable();
   }
   function populateMachinesTableRows(){
     const tb=$("#list tbody"); if (!tb) return; tb.innerHTML="";
@@ -437,7 +441,8 @@ document.addEventListener("DOMContentLoaded", () => {
       .filter(m=>{
         const catOk = tableCategory==="all" ? true : (m.category||"global")===tableCategory;
         const floorOk = tableFloorId==="all" ? true : (m.floor_id===tableFloorId);
-        return catOk && floorOk;
+        const operationalOk = m.operational !== false; // Only show operational machines
+        return catOk && floorOk && operationalOk;
       })
       .sort((a,b)=> (a.floor_id||"").localeCompare(b.floor_id||"") || (a.category||"").localeCompare(b.category||"") || (a.name||"").localeCompare(b.name||""))
       .forEach(m=>{
@@ -469,9 +474,67 @@ document.addEventListener("DOMContentLoaded", () => {
           $("#m-os").value=m.os||""; // set dropdown
           $("#m-ip").value=m.ip||""; $("#m-serial").value=m.serial||"";
           $("#m-notes").value=m.notes||""; $("#m-category").value=m.category||"global";
+          $("#m-check").value=m.check||"icmp"; $("#m-tcp").value=m.tcp_port||"";
           $("#m-pos").textContent = (typeof m.x==="number"&&typeof m.y==="number") ? `x:${m.x.toFixed(3)}, y:${m.y.toFixed(3)}` : "(use Map placement)";
+          $("#m-non-operational").checked = !m.operational;
           placement={mid:m.id,x:m.x,y:m.y,floor_id:m.floor_id};
           syncFloorCategoriesUI();
+        }
+      });
+    });
+  }
+  
+  function populateStorageSettingsTable(){
+    const tb=$("#storage-settings-list tbody"); if (!tb) return; tb.innerHTML="";
+    const storageMachines = machines.filter(m=> !m.operational);
+    if (storageMachines.length === 0){
+      tb.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center;padding:12px;">No devices in storage</td></tr>';
+      return;
+    }
+    storageMachines
+      .sort((a,b)=> (a.floor_id||"").localeCompare(b.floor_id||"") || (a.category||"").localeCompare(b.category||"") || (a.name||"").localeCompare(b.name||""))
+      .forEach(m=>{
+        const floorName = floors.find(f=>f.id===m.floor_id)?.name || m.floor_id || "";
+        const tr=document.createElement("tr");
+        tr.innerHTML=`
+          <td>${esc((CAT_LABEL[m.category||"global"])||"Global")}</td>
+          <td>${esc(m.name||"")}</td>
+          <td>${esc(m.os||"")}</td>
+          <td>${esc(m.ip||"")}</td>
+          <td>${esc(m.serial||"")}</td>
+          <td>${esc(floorName)}</td>
+          <td>
+            <button class="btn mini" data-act="edit" data-id="${m.id}">Edit</button>
+            <button class="btn mini" data-act="promote" data-id="${m.id}">Promote to operational</button>
+            <button class="btn mini" data-act="del" data-id="${m.id}">Delete</button>
+          </td>`;
+        tb.appendChild(tr);
+      });
+    tb.querySelectorAll("button").forEach(b=>{
+      b.addEventListener("click", async ()=>{
+        const id=b.dataset.id, act=b.dataset.act, m=machines.find(x=>x.id===id);
+        if (act==="del"){ 
+          if(!confirm("Delete device from storage?")) return; 
+          await fetch("/api/machines/"+id,{method:"DELETE"}); 
+          await loadMachinesTable(); 
+          await loadStorageDevices();
+          showToast("Device deleted"); 
+        }
+        else if (act==="edit" && m){
+          $("#m-id").value=m.id; $("#m-name").value=m.name||"";
+          $("#m-os").value=m.os||"";
+          $("#m-ip").value=m.ip||""; $("#m-serial").value=m.serial||"";
+          $("#m-notes").value=m.notes||""; $("#m-category").value=m.category||"global";
+          $("#m-check").value=m.check||"icmp"; $("#m-tcp").value=m.tcp_port||"";
+          $("#m-pos").textContent = "(use Map placement)";
+          $("#m-non-operational").checked = true;
+          placement={mid:m.id,x:null,y:null,floor_id:m.floor_id};
+          syncFloorCategoriesUI();
+          // Scroll to the form
+          $('[data-tab="settings"]')?.scrollIntoView({behavior:'smooth', block:'start'});
+        }
+        else if (act==="promote" && m){
+          startPromotionMode(m);
         }
       });
     });
@@ -679,6 +742,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Add device to storage
+  function clearStorageForm(){
+    $("#stor-name").value = "";
+    $("#stor-os").value = "";
+    $("#stor-ip").value = "";
+    $("#stor-serial").value = "";
+    $("#stor-category").value = "global";
+    $("#stor-notes").value = "";
+    $("#stor-check").value = "icmp";
+    $("#stor-tcp").value = "";
+    $("#stor-error").textContent = "";
+  }
+  
+  $("#stor-clear")?.addEventListener("click", clearStorageForm);
+  
   $("#stor-save")?.addEventListener("click", async ()=>{
     const name = $("#stor-name")?.value.trim();
     const category = $("#stor-category")?.value || "global";
@@ -706,10 +783,12 @@ document.addEventListener("DOMContentLoaded", () => {
       category,
       floor_id,
       operational: false,
-      ip: "",
-      serial: "",
-      os: "",
-      notes: ""
+      ip: $("#stor-ip")?.value.trim() || "",
+      serial: $("#stor-serial")?.value.trim() || "",
+      os: $("#stor-os")?.value || "",
+      notes: $("#stor-notes")?.value.trim() || "",
+      check: $("#stor-check")?.value || "icmp",
+      tcp_port: +($("#stor-tcp")?.value||0)
     };
 
     try {
@@ -726,8 +805,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       
       // Clear form
-      $("#stor-name").value = "";
-      $("#stor-category").value = "global";
+      clearStorageForm();
       
       await loadStorageDevices();
       showToast("Device added to storage");
@@ -737,11 +815,16 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Keyboard support for storage form
-  $("#stor-name")?.addEventListener("keydown", (ev)=>{
-    if (ev.key === "Enter"){
-      ev.preventDefault();
-      $("#stor-save")?.click();
-    }
+  const storageFormInputs = ["#stor-name", "#stor-ip", "#stor-serial", "#stor-tcp"];
+  storageFormInputs.forEach(sel=>{
+    $(sel)?.addEventListener("keydown", (ev)=>{
+      if (ev.key === "Enter"){
+        ev.preventDefault();
+        $("#stor-save")?.click();
+      } else if (ev.key === "Escape"){
+        clearStorageForm();
+      }
+    });
   });
 
   // Start promotion mode

@@ -102,6 +102,19 @@
           <div class="storage-add">
             <h4>Add to Storage</h4>
             <label>Name<input id="stor-name" class="field" placeholder="Device name"/></label>
+            <label>OS
+              <select id="stor-os" class="field">
+                <option value="">Select OS</option>
+                <option>Windows 11 (SAC)</option>
+                <option>Windows 11 (LTSC)</option>
+                <option>Windows 10 (SAC)</option>
+                <option>Windows 10 (LTSC)</option>
+                <option>Linux</option>
+                <option>MacOS</option>
+              </select>
+            </label>
+            <label>IP<input id="stor-ip" class="field" placeholder="IP address"/></label>
+            <label>Serial<input id="stor-serial" class="field" placeholder="Serial number"/></label>
             <label>Category
               <select id="stor-category" class="field">
                 <option value="global">Global clients</option>
@@ -113,7 +126,16 @@
             <label>Floor
               <select id="stor-floor" class="field"></select>
             </label>
+            <label>Notes<textarea id="stor-notes" class="field" rows="2" placeholder="Optional notes"></textarea></label>
+            <label>Check method
+              <select id="stor-check" class="field">
+                <option value="icmp" selected>ICMP ping</option>
+                <option value="tcp">TCP connect</option>
+              </select>
+            </label>
+            <label>TCP port (optional)<input id="stor-tcp" class="field" type="number" min="1" max="65535" placeholder="e.g., 3389"/></label>
             <button id="stor-save" class="btn primary">Add to Storage</button>
+            <button id="stor-clear" class="btn mini">Clear</button>
             <div id="stor-error" class="error"></div>
           </div>
           <div class="storage-list">
@@ -222,6 +244,9 @@
               <button id="open-placement" class="btn mini">Map placement</button>
               <button id="clear-pos" class="btn mini">Clear position</button>
             </div>
+            <div class="full row">
+              <label><input type="checkbox" id="m-non-operational"/> Add to inventory (non-operational)</label>
+            </div>
             <input id="m-id" class="field hidden" disabled/>
           </div>
           <div class="row"><button id="save-machine" class="btn primary">Save machine</button><button id="clear-form" class="btn">Clear</button></div>
@@ -242,6 +267,14 @@
           </div>
           <table id="list">
             <thead><tr><th>Category</th><th>Name</th><th>OS</th><th>IP</th><th>Serial</th><th>Floor</th><th>Status</th><th>Last RTT</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="panel glass">
+          <h3>Storage Inventory (Admin Only)</h3>
+          <table id="storage-settings-list">
+            <thead><tr><th>Category</th><th>Name</th><th>OS</th><th>IP</th><th>Serial</th><th>Floor</th><th>Actions</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
