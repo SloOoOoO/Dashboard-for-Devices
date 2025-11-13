@@ -35,11 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const showToast = msg => { if(!toast) return; toast.textContent=msg; toast.classList.remove("hidden"); setTimeout(()=>toast.classList.add("hidden"), 3000); };
 
-  // Theme
-  function setTheme(t){ document.documentElement.setAttribute("data-theme", t); localStorage.setItem("theme", t); $("#theme-toggle").textContent = t==="dark" ? "☀️" : "🌙"; }
-  $("#theme-toggle")?.addEventListener("click", ()=> setTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"));
-  setTheme(localStorage.getItem("theme")||"light");
-
   // Rotation persistence
   const rotKey = fid => `rot:${fid||""}`;
   const getRot = fid => { const v=+localStorage.getItem(rotKey(fid)); return [0,90,180,270].includes(v)?v:0; };
@@ -309,6 +304,7 @@ document.addEventListener("DOMContentLoaded", () => {
     floorSettingsSel.innerHTML=floors.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join("");
     floorSettingsSel.value=(floors.find(f=>f.default)||floors[0]).id;
     syncFloorCategoriesUI();
+    populateMachineFloorDropdown();
   }
 
   function populateTableFloorFilter(){
@@ -511,10 +507,19 @@ document.addEventListener("DOMContentLoaded", () => {
     $("#m-ip").value=""; $("#m-serial").value="";
     $("#m-notes").value=""; $("#m-tcp").value=""; $("#m-check").value="icmp"; $("#m-pos").textContent="(use Map placement)";
     $("#m-category").value="global";
+    if ($("#m-floor")) $("#m-floor").value = currentFloor?.id || floors[0]?.id || "";
     $("#m-non-operational").checked = false;
     placement={mid:null,x:null,y:null,floor_id:null};
   }
   $("#clear-form")?.addEventListener("click", clearForm);
+  
+  // Populate floor dropdown in machine form
+  function populateMachineFloorDropdown(){
+    const floorDropdown = $("#m-floor");
+    if (!floorDropdown) return;
+    floorDropdown.innerHTML = floors.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join("");
+    if (currentFloor) floorDropdown.value = currentFloor.id;
+  }
 
   // Keyboard shortcuts for machine form
   const machineFormInputs = ["#m-name", "#m-ip", "#m-serial", "#m-tcp"];
@@ -531,21 +536,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("#save-machine")?.addEventListener("click", async ()=>{
     const name=$("#m-name").value.trim();
+    const os=$("#m-os").value;
     const ip=$("#m-ip").value.trim();
-    if (!name && !ip){ showToast("Enter at least a Name or an IP"); return; }
-    let defaultFloorId = placement.floor_id || floorSettingsSel?.value || floorSel?.value || (currentFloor?.id||"");
+    const serial=$("#m-serial").value.trim();
+    const check=$("#m-check").value;
+    const floor_id=$("#m-floor")?.value || "";
+    const isNonOperational = $("#m-non-operational")?.checked;
+    
+    // Validate mandatory fields
+    if (!name){ showToast("Name is required"); return; }
+    if (!os){ showToast("OS is required"); return; }
+    if (!ip){ showToast("IP is required"); return; }
+    if (!serial){ showToast("Serial is required"); return; }
+    if (!check){ showToast("Check method is required"); return; }
+    if (!floor_id){ showToast("Floor is required"); return; }
+    
+    // If not adding to inventory (operational device), position is required
+    if (!isNonOperational && (placement.x == null || placement.y == null)){
+      showToast("Map position is required for operational devices. Click 'Map placement' to set position.");
+      return;
+    }
+    
     const body={
       id: $("#m-id").value || undefined,
       name,
-      os: $("#m-os").value, // dropdown value
+      os,
       ip,
-      serial: $("#m-serial").value.trim(),
+      serial,
       notes: $("#m-notes").value.trim(),
-      check: $("#m-check").value,
+      check,
       tcp_port: +($("#m-tcp").value||0),
       category: $("#m-category").disabled ? "global" : ($("#m-category").value || "global"),
-      floor_id: defaultFloorId || undefined,
-      operational: !$("#m-non-operational")?.checked,
+      floor_id,
+      operational: !isNonOperational,
     };
     if (placement.x!=null && placement.y!=null){
       body.x=placement.x; body.y=placement.y;
@@ -631,6 +654,9 @@ document.addEventListener("DOMContentLoaded", () => {
           $("#m-os").value=m.os||""; // set dropdown
           $("#m-ip").value=m.ip||""; $("#m-serial").value=m.serial||"";
           $("#m-notes").value=m.notes||""; $("#m-category").value=m.category||"global";
+          if ($("#m-floor")) $("#m-floor").value = m.floor_id || currentFloor?.id || "";
+          $("#m-check").value = m.check || "icmp";
+          $("#m-tcp").value = m.tcp_port || "";
           $("#m-non-operational").checked = !m.operational;
           $("#m-pos").textContent = (typeof m.x==="number"&&typeof m.y==="number") ? `x:${m.x.toFixed(3)}, y:${m.y.toFixed(3)}` : "(use Map placement)";
           placement={mid:m.id,x:m.x,y:m.y,floor_id:m.floor_id};
