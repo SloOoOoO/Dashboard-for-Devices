@@ -405,8 +405,8 @@ def import_floors():
             save_state(STATE)
         
         return jsonify({"ok": True, "message": f"Imported {len(imported_floors)} floors"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    except Exception:
+        return jsonify({"error": "Failed to import floors"}), 400
 
 @app.post("/api/floors/upload")
 def floors_upload():
